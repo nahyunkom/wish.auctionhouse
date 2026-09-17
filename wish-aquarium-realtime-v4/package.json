@@ -1,0 +1,20 @@
+{
+  "name": "wish-auction-aquarium",
+  "version": "4.0.0",
+  "private": true,
+  "description": "소망경매장 모바일 진단과 실시간 공유 수족관",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check": "node --check server.js && node --check app.js && node --check data.js && node --check particles.js && node --check shared-aquarium.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "p5": "^1.11.3",
+    "socket.io": "^4.8.1"
+  }
+}

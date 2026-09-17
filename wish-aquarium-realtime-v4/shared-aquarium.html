@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="robots" content="noindex,nofollow">
+    <title>공유 수족관 — 소망경매장</title>
+    <link rel="stylesheet" href="shared-aquarium.css">
+  </head>
+  <body>
+    <main id="aquarium-stage" aria-label="관람객의 소망생물이 헤엄치는 공유 수족관">
+      <div id="canvas-host" aria-hidden="true"></div>
+      <div class="aquarium-vignette" aria-hidden="true"></div>
+      <header class="aquarium-header">
+        <div>
+          <p>소망경매장 · WISH AUCTION</p>
+          <h1>공유 수족관</h1>
+        </div>
+        <div class="live-state" id="live-state" data-state="connecting">
+          <i aria-hidden="true"></i>
+          <span>수족관 연결 중</span>
+        </div>
+      </header>
+
+      <section class="aquarium-counter" aria-live="polite">
+        <span id="creature-count">00</span>
+        <p>함께 헤엄치는<br>소망생물</p>
+      </section>
+
+      <div class="arrival" id="arrival" aria-live="polite" aria-atomic="true">
+        <span>NEW WISH CREATURE</span>
+        <strong id="arrival-name"></strong>
+        <p>새로운 소망이 수족관에 도착했습니다.</p>
+      </div>
+
+      <footer class="aquarium-footer">
+        <p>각자의 마음에서 태어난 소망들이<br>하나의 바다에서 함께 살아갑니다.</p>
+        <button id="fullscreen-button" type="button">전체 화면</button>
+      </footer>
+    </main>
+
+    <script src="/vendor/p5.min.js"></script>
+    <script src="config.js"></script>
+    <script src="data.js"></script>
+    <script src="shared-aquarium.js"></script>
+  </body>
+</html>
