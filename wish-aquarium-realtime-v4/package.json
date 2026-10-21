@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js && node --check app.js && node --check data.js && node --check particles.js && node --check shared-aquarium.js"
+    "check": "node --check server.js && node --check app.js && node --check data.js && node --check particles.js && node --check shared-aquarium.js && node --check catalog-ui.js && node --check catalog-model.js && node scripts/verify-catalog.cjs && node scripts/verify-ui-flow.cjs",
+    "postinstall": "node scripts/unpack-creatures.cjs"
   },
   "engines": {
     "node": ">=20"

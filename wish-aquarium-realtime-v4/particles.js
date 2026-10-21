@@ -87,3 +87,4 @@
   canvas.addEventListener('webglcontextrestored',()=>{initializeGPU();visible=!document.hidden;last=0;resize();sync();});
   resize();sync();
 })();
+

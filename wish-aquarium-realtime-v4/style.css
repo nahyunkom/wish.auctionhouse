@@ -47,3 +47,21 @@ body[data-scene=greeting] .giant-position{left:22vw;top:-35vh;opacity:.75}body[d
 
 @media(max-width:760px){.result-actions-panel{margin-top:10px;padding:23px 18px 20px}.result-actions-panel h2{font-size:20px}.action-intro{font-size:12px}.result-action-buttons button{min-height:62px}.action-meta{align-items:flex-start;flex-direction:column;gap:6px}.result-action-status{font-size:11px}.text-restart{margin-top:14px}.result .result-info{width:100%}}
 @media(prefers-reduced-motion:reduce){.connection-state i,.release-bloom{animation:none!important}}
+
+
+/* Original, paired creature assets. Keep their color and proportions. */
+.catalog-specimen{filter:none!important;mix-blend-mode:normal!important}
+.catalog-options .detail-choice strong{display:block;font-size:15px;font-weight:500}
+.catalog-options .detail-choice small{display:block;color:#8ea8ad;font-size:12px;font-weight:300;line-height:1.7;margin-top:6px}
+.catalog-options .detail-choice{min-height:88px;align-items:center}
+.catalog-survey .show-all{display:block;margin-top:24px;min-height:48px}
+.catalog-tank{position:relative;min-height:600px;overflow:hidden;background:#000!important;border-color:#25414a}
+.catalog-poster,.catalog-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:none!important;mix-blend-mode:normal!important}
+.catalog-video{opacity:0}.catalog-video.is-playing{opacity:1}
+.catalog-video-controls{position:absolute;bottom:82px;left:22px;right:22px;display:flex;align-items:center;gap:14px;z-index:2}
+.catalog-video-controls button{font-size:12px;min-height:44px;padding:10px 18px;white-space:nowrap}
+.catalog-video-controls span{font-size:11px;line-height:1.7;color:#92a7ad}
+.catalog-tank .tank-label{z-index:2;background:#000b;padding:10px}
+.result-method-title{font-size:.55em;font-weight:300;line-height:1.9;color:#9fbac1}
+@media(min-width:1000px){.catalog-options{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-survey{max-width:1120px}.result-grid{grid-template-columns:minmax(300px,.9fr) minmax(0,1.1fr);gap:48px}.catalog-tank{position:sticky;top:28px;height:calc(100svh - 160px);min-height:530px}}
+@media(max-width:760px){.catalog-tank{height:64svh;min-height:400px}.catalog-video-controls{left:14px;right:14px;bottom:70px}.catalog-options .detail-choice{min-height:82px}}

@@ -3,6 +3,8 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const express = require('express');
 const { Server } = require('socket.io');
+const catalog = require('./creature-catalog.json');
+const catalogModel = require('./catalog-model.js')(catalog);
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -40,22 +42,15 @@ function cleanExpiredCreatures() {
 }
 
 function makeCreature(payload) {
-  const situationIndex = Number(payload?.situationIndex);
-  const wayIndex = Number(payload?.wayIndex);
-  if (!Number.isInteger(situationIndex) || situationIndex < 0 || situationIndex > 6) return null;
-  if (!Number.isInteger(wayIndex) || wayIndex < 0 || wayIndex > 6) return null;
-  const specimenNumber = situationIndex * 7 + wayIndex + 1;
+  const entry=catalogModel.get(payload?.catalogId);
+  if(!entry)return null;
   return {
-    id: crypto.randomUUID(),
-    specimenId: `WA-${String(specimenNumber).padStart(3, '0')}`,
-    name: prefixes[situationIndex] + species[wayIndex],
-    situationIndex,
-    wayIndex,
-    situationLabel: situationLabels[situationIndex],
-    wayLabel: wayLabels[wayIndex],
-    hue: hues[situationIndex],
-    releasedAt: Date.now(),
-    seed: crypto.randomInt(1, 2_147_483_647)
+    id:crypto.randomUUID(),catalogId:entry.id,specimenId:entry.id,
+    name:entry.folder,wishType:entry.wishType,methodType:entry.methodType,
+    situationIndex:entry.situationIndex,wayIndex:entry.wayIndex,
+    situationLabel:entry.wishCategory,wayLabel:wayLabels[entry.wayIndex],
+    imageUrl:entry.imageUrl,videoUrl:entry.videoUrl,
+    releasedAt:Date.now(),seed:crypto.randomInt(1,2_147_483_647)
   };
 }
 
@@ -69,7 +64,7 @@ app.use((request, response, next) => {
 
 app.get('/health', (_request, response) => {
   cleanExpiredCreatures();
-  response.json({ ok: true, creatures: creatures.length, uptimeSeconds: Math.round(process.uptime()) });
+  response.json({ ok: true, catalogVersion:catalog.version, catalogCount:catalog.count, creatures: creatures.length, uptimeSeconds: Math.round(process.uptime()) });
 });
 
 app.get(['/', '/index.html'], (_request, response) => response.sendFile(path.join(root, 'index.html')));
@@ -82,6 +77,9 @@ for (const filename of [
   'app.js',
   'config.js',
   'data.js',
+  'creature-catalog.js',
+  'catalog-model.js',
+  'catalog-ui.js',
   'particles.js',
   'shared-aquarium.css',
   'shared-aquarium.js'
@@ -139,7 +137,7 @@ io.on('connection', (socket) => {
 
     const creature = makeCreature(payload);
     if (!creature) {
-      acknowledge({ ok: false, message: '생물 정보가 올바르지 않습니다.' });
+      acknowledge({ ok: false, message: '생물 목록이 변경되었어요. 새로고침 후 다시 진단해 주세요.' });
       return;
     }
 
@@ -168,3 +166,4 @@ function shutdown() {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+

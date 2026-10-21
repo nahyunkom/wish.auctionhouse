@@ -7,3 +7,4 @@ window.WISH_AQUARIUM_CONFIG = {
   socketUrl: '',
   connectionTimeoutMs: 8000
 };
+

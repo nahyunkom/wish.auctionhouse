@@ -17,28 +17,10 @@ const realtime = {
   error: ''
 };
 
-const specimen = (way = 0, situation = 0, extraClass = '') => `
-  <div
-    class="specimen ${extraClass}"
-    role="img"
-    aria-label="${situations[situation].prefix + ways[way].species}"
-    style="background-image:url('assets/creature-${way}.webp');filter:hue-rotate(${situations[situation].hue}deg)"
-  ></div>`;
-
-function tank(way = 0, situation = 0, id = 'UNKNOWN SPECIMEN') {
-  const specimenNumber = id === 'UNKNOWN SPECIMEN' ? '?' : String(situation * 7 + way + 1).padStart(2, '0');
-  const depth = id === 'UNKNOWN SPECIMEN' ? '0' : '3,000';
-  return `
-    <div class="tank" data-result-tank>
-      <div class="orbit" aria-hidden="true"></div>
-      <div class="cross" aria-hidden="true"></div>
-      <div class="cross horizontal" aria-hidden="true"></div>
-      <span class="side-index">[ ${specimenNumber} ]</span>
-      ${specimen(way, situation)}
-      <span class="depth-tag">DEPTH ${depth} M</span>
-      <div class="tank-label"><strong>${id}</strong><br>WISH AQUARIUM COLLECTION</div>
-    </div>`;
-}
+const specimen = (way = 0, situation = 0, extraClass = '') => {
+  const entry = WishCatalog.entries.find(item => item.wayIndex === way && item.situationIndex === situation) || WishCatalog.entries[0];
+  return '<div class="specimen catalog-specimen ' + extraClass + '" role="img" aria-label="' + escapeHtml(entry.folder) + '" style="background-image:url(\'' + entry.imageUrl + '\')"></div>';
+};
 
 function focusHeading() {
   const heading = app.querySelector('h1,h2');
@@ -66,6 +48,7 @@ function home() {
   answers = [];
   greetingChoice = '';
   currentResult = null;
+  resetCatalogSelection();
   realtime.released = false;
   realtime.releasing = false;
   setScene('welcome');
@@ -154,6 +137,7 @@ function introduction() {
 }
 
 function begin() {
+  resetCatalogSelection();
   step = 0;
   answers = [];
   renderQuestion();
@@ -169,10 +153,10 @@ function renderQuestion() {
       <div class="survey-top">
         <button class="text-button" id="back">← ${step === 0 ? '처음으로' : '이전 질문'}</button>
         <span>수심 ${depth} M</span>
-        <span>${String(step + 1).padStart(2, '0')} / 06</span>
+        <span>${String(step + 1).padStart(2, '0')} / 08</span>
       </div>
-      <div class="progress" role="progressbar" aria-label="진단 진행률" aria-valuemin="0" aria-valuemax="6" aria-valuenow="${step + 1}">
-        <div style="width:${(step + 1) / 6 * 100}%"></div>
+      <div class="progress" role="progressbar" aria-label="진단 진행률" aria-valuemin="0" aria-valuemax="8" aria-valuenow="${step + 1}">
+        <div style="width:${(step + 1) / 8 * 100}%"></div>
       </div>
       <div class="question-head">
         <div>
@@ -217,7 +201,7 @@ function renderQuestion() {
     if (step < 5) {
       step += 1;
       renderQuestion();
-    } else discover();
+    } else showWishDetails();
   };
   focusHeading();
 }
@@ -241,58 +225,50 @@ function makeReleaseId() {
 }
 
 function showResult() {
+  const entry = WishCatalog.get(selectedCatalogId);
+  if (!entry) { showWishDetails(); return; }
   setScene('result', 6);
-  const [situation, way] = scoreAnswers(answers);
-  const creature = getCreature(situation, way);
-  currentResult = { situation, way, creature, clientReleaseId: makeReleaseId() };
-  realtime.released = false;
-  realtime.releasing = false;
-
+  const situation=entry.situationIndex, way=entry.wayIndex;
+  const creature={id:entry.id,name:entry.folder,situation:situations[situation],way:ways[way]};
+  currentResult={situation,way,creature,entry,clientReleaseId:makeReleaseId()};
+  realtime.released=false;
+  realtime.releasing=false;
   app.innerHTML = `
     <section class="result fade-in">
       <div class="result-grid">
-        ${tank(way, situation, creature.id)}
+        ${catalogTank(entry)}
         <div class="result-info">
           <div class="result-title">
-            <div class="eyebrow">탐사 완료 · 당신의 소망생물</div>
-            <h1>${creature.name}</h1>
-            <p class="result-lead">${creature.way.verb},<br><strong>${creature.situation.phrase}</strong>을 향한 소망.</p>
-            <div class="chips"><span class="chip">${creature.situation.label}</span><span class="chip">${creature.way.label}</span></div>
+            <div class="eyebrow">탐사 완료 — 당신의 소망생물</div>
+            <h1>${escapeHtml(entry.wishType)}<br><span class="result-method-title">${escapeHtml(entry.methodType)}</span></h1>
+            <p class="result-lead">${escapeHtml(wishDescriptions[entry.wishType])}<br><strong>${escapeHtml(methodDescriptions[entry.methodType])}</strong></p>
+            <div class="chips"><span class="chip">${escapeHtml(entry.wishCategory)}</span><span class="chip">${escapeHtml(ways[way].label)}</span></div>
           </div>
           <div class="record">
-            <div class="record-item"><h3>생물 관찰 기록</h3><p>${creature.situation.habitat}에 살고 있습니다. ${creature.situation.trait} ${creature.way.ecology}</p></div>
-            <div class="record-item"><h3>당신의 소망을 키우는 방식</h3><p>${creature.way.desc}</p></div>
-            <div class="record-item"><h3>오늘, 소망에게 건네는 양분</h3><p>${creature.situation.action} ${creature.way.tip}</p></div>
+            <div class="record-item"><h3>당신이 품은 소망</h3><p>${escapeHtml(wishDescriptions[entry.wishType])}</p></div>
+            <div class="record-item"><h3>소망을 키우는 방식</h3><p>${escapeHtml(methodDescriptions[entry.methodType])}</p></div>
+            ${entry.caption ? '<div class="record-item"><h3>생물의 기록</h3><p lang="en">'+escapeHtml(entry.caption)+'</p></div>' : ''}
           </div>
-
           <section class="result-actions-panel" aria-labelledby="result-actions-title">
             <p class="overline">YOUR CREATURE, YOUR CHOICE</p>
-            <h2 id="result-actions-title">이 생물을 어디에 머물게 할까요?</h2>
-            <p class="action-intro">이미지로 간직하거나, 모두가 함께 보는 전시장 수족관에 풀어둘 수 있어요.</p>
+            <h2 id="result-actions-title">이 생물은 어디에 머물게 할까요?</h2>
+            <p class="action-intro">이미지로 간직하거나, 모두가 함께 보는 심해 수족관에 풀어줄 수 있어요.</p>
             <div class="result-action-buttons">
-              <button class="primary release-button" id="release-creature" disabled>
-                <span><small>LIVE AQUARIUM</small>공유 수족관에 방류하기</span><span aria-hidden="true">→</span>
-              </button>
-              <button class="save-button" id="save-creature">
-                <span><small>KEEP YOUR WISH</small>내 생물 이미지 저장하기</span><span aria-hidden="true">↓</span>
-              </button>
+              <button class="primary release-button" id="release-creature" disabled><span><small>LIVE AQUARIUM</small>공유 수족관에 방류하기</span><span aria-hidden="true">↗</span></button>
+              <button class="save-button" id="save-creature"><span><small>KEEP YOUR WISH</small>내 생물 이미지 저장하기</span><span aria-hidden="true">↓</span></button>
             </div>
-            <div class="action-meta">
-              <span class="connection-state" id="connection-state" data-state="connecting"><i aria-hidden="true"></i><span>공유 수족관 연결 중</span></span>
-              <span>이메일 입력 없이 바로 저장돼요.</span>
-            </div>
+            <div class="action-meta"><span class="connection-state" id="connection-state" data-state="connecting"><i aria-hidden="true"></i><span>공유 수족관 연결 중</span></span><span>이메일 입력 없이 바로 저장해요.</span></div>
             <p class="result-action-status" id="result-action-status" role="status" aria-live="polite"></p>
           </section>
-
-          <p class="result-foot">이 생물은 지금의 선택으로 발견한 소망의 한 모습입니다.<br>마음이 달라지면, 또 다른 생물을 만날 수 있어요.<br>전시를 위한 창작 진단이며 심리검사는 아닙니다.</p>
-          <button class="text-restart" id="restart">다른 소망으로 다시 탐사하기 <span aria-hidden="true">↺</span></button>
+          <p class="result-foot">이 생물은 지금 당신이 품은 소망의 한 모습입니다.<br>마음이 달라지면, 또 다른 생물을 만날 수 있어요.</p>
+          <button class="text-restart" id="restart">다른 소망으로 다시 탐사하기 <span aria-hidden="true">↻</span></button>
         </div>
       </div>
     </section>`;
-
-  document.querySelector('#release-creature').onclick = releaseCreature;
-  document.querySelector('#save-creature').onclick = saveCreatureImage;
-  document.querySelector('#restart').onclick = home;
+  document.querySelector('#release-creature').onclick=releaseCreature;
+  document.querySelector('#save-creature').onclick=saveCreatureImage;
+  document.querySelector('#restart').onclick=home;
+  bindCreatureVideo();
   syncRealtimeControls();
   focusHeading();
 }
@@ -406,8 +382,7 @@ function releaseCreature() {
   announceResultAction('당신의 생물이 전시장 수족관으로 이동하고 있어요.', 'pending');
   syncRealtimeControls();
   const payload = {
-    situationIndex: currentResult.situation,
-    wayIndex: currentResult.way,
+    catalogId: currentResult.entry.id,
     clientReleaseId: currentResult.clientReleaseId
   };
 
@@ -460,88 +435,9 @@ function loadResultImage(src) {
 }
 
 async function createResultCardBlob() {
-  const { situation, way, creature } = currentResult;
-  if (document.fonts?.ready) await document.fonts.ready;
-  const image = await loadResultImage(`assets/creature-${way}.webp`);
-  const canvas = document.createElement('canvas');
-  canvas.width = 1080;
-  canvas.height = 1920;
-  const context = canvas.getContext('2d');
-  const gradient = context.createRadialGradient(700, 590, 60, 540, 820, 1280);
-  gradient.addColorStop(0, '#103e48');
-  gradient.addColorStop(0.32, '#04191e');
-  gradient.addColorStop(1, '#000000');
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-
-  const random = seededRandom(situation * 101 + way * 997 + 41);
-  for (let index = 0; index < 260; index += 1) {
-    const x = random() * canvas.width;
-    const y = random() * canvas.height;
-    const radius = 0.7 + random() * 2.2;
-    context.fillStyle = random() > 0.88 ? 'rgba(188,207,116,.45)' : `rgba(92,204,215,${0.08 + random() * 0.28})`;
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.fill();
-  }
-
-  context.strokeStyle = 'rgba(126,210,218,.17)';
-  context.lineWidth = 2;
-  context.beginPath();
-  context.arc(540, 675, 395, 0, Math.PI * 2);
-  context.stroke();
-  context.setLineDash([8, 18]);
-  context.beginPath();
-  context.arc(540, 675, 330, 0, Math.PI * 2);
-  context.stroke();
-  context.setLineDash([]);
-
-  const maxWidth = 760;
-  const maxHeight = 720;
-  const ratio = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
-  const drawWidth = image.naturalWidth * ratio;
-  const drawHeight = image.naturalHeight * ratio;
-  context.save();
-  context.globalCompositeOperation = 'screen';
-  context.filter = `hue-rotate(${creature.situation.hue}deg) saturate(1.12) brightness(1.08)`;
-  context.shadowColor = 'rgba(89,215,225,.45)';
-  context.shadowBlur = 70;
-  context.drawImage(image, (canvas.width - drawWidth) / 2, 675 - drawHeight / 2, drawWidth, drawHeight);
-  context.restore();
-
-  context.fillStyle = '#91a8ac';
-  context.font = "400 27px 'Noto Sans KR', sans-serif";
-  context.letterSpacing = '4px';
-  context.fillText('소망경매장  ·  WISH AUCTION', 86, 94);
-  context.textAlign = 'right';
-  context.fillText(creature.id, 994, 94);
-  context.textAlign = 'left';
-
-  context.fillStyle = '#b5ca7d';
-  context.font = "500 27px 'Noto Sans KR', sans-serif";
-  context.fillText(`${creature.situation.label}  ×  ${creature.way.label}`, 86, 1210);
-  context.fillStyle = '#e3f0f1';
-  context.font = "300 86px 'Noto Sans KR', sans-serif";
-  context.fillText(creature.name, 82, 1334);
-  context.fillStyle = '#9eb5b9';
-  context.font = "300 37px 'Noto Sans KR', sans-serif";
-  drawWrappedText(context, `${creature.way.verb}, ${creature.situation.phrase}을 향한 소망.`, 86, 1428, 900, 58, 3);
-
-  context.strokeStyle = 'rgba(139,201,210,.25)';
-  context.beginPath();
-  context.moveTo(86, 1608);
-  context.lineTo(994, 1608);
-  context.stroke();
-  context.fillStyle = '#708d92';
-  context.font = "300 27px 'Noto Sans KR', sans-serif";
-  drawWrappedText(context, '이 생물은 지금의 당신이 품은 소망에서 태어났습니다. 마음이 달라지면 또 다른 생물을 만날 수 있어요.', 86, 1685, 900, 44, 3);
-  context.fillStyle = '#526c71';
-  context.font = "400 22px 'Noto Sans KR', sans-serif";
-  context.fillText('DEEP SEA WISH AQUARIUM · 2026', 86, 1840);
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('이미지를 만들지 못했습니다.')), 'image/png');
-  });
+  const response=await fetch(currentResult.entry.imageUrl);
+  if(!response.ok)throw new Error('생물 이미지를 불러오지 못했습니다.');
+  return response.blob();
 }
 
 function downloadBlob(blob, filename) {
@@ -562,7 +458,7 @@ async function saveCreatureImage() {
   button.disabled = true;
   button.classList.add('is-busy');
   button.innerHTML = '<span><small>CREATING IMAGE</small>생물 이미지를 만드는 중</span><span aria-hidden="true">···</span>';
-  announceResultAction('고화질 생물 카드를 만들고 있어요.', 'pending');
+  announceResultAction('원본 생물 이미지를 준비하고 있어요.', 'pending');
 
   try {
     const blob = await createResultCardBlob();
@@ -581,7 +477,7 @@ async function saveCreatureImage() {
         title: `나의 소망생물 · ${currentResult.creature.name}`,
         text: '소망경매장에서 발견한 나의 소망생물입니다.'
       });
-      announceResultAction('휴대폰의 저장·공유 메뉴로 생물 카드를 보냈어요.', 'success');
+      announceResultAction('휴대폰의 저장·공유 메뉴로 원본 이미지를 보냈어요.', 'success');
     } else {
       downloadBlob(blob, filename);
       announceResultAction('생물 이미지가 저장되었습니다.', 'success');
@@ -598,6 +494,8 @@ async function saveCreatureImage() {
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 function updateMotion() {
   document.body.classList.toggle('motion-paused', motionPaused);
+  const video=document.querySelector('#result-video');
+  if(video){if(motionPaused)video.pause();else video.play().catch(()=>{});}
   document.querySelector('#motion').setAttribute('aria-pressed', String(motionPaused));
   document.querySelector('#motion').textContent = motionPaused ? '움직임 재생' : '움직임 멈춤';
 }
@@ -625,3 +523,4 @@ document.querySelector('#home-link').onclick = (event) => {
 
 home();
 loadRealtimeClient();
+

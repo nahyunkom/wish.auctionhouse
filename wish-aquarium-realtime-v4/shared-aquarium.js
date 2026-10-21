@@ -7,11 +7,7 @@ let arrivalTimer = null;
 let firstFrame = true;
 let backgroundParticles = [];
 
-function preload() {
-  for (let index = 0; index < 7; index += 1) {
-    creatureImages[index] = loadImage(`assets/creature-${index}.webp`);
-  }
-}
+function preload() {}
 
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
@@ -67,7 +63,10 @@ class WishSwimmer {
   constructor(data, isNew = false) {
     this.data = data;
     this.id = data.id;
-    this.image = creatureImages[data.wayIndex];
+    this.image = null;
+    if(typeof data.imageUrl==='string' && /^assets\/catalog\/WC-[a-f0-9]{12}\.png$/.test(data.imageUrl)) {
+      loadImage(data.imageUrl, loaded=>{this.image=loaded;}, ()=>{});
+    }
     this.seed = Number(data.seed) || Math.floor(Math.random() * 100000);
     this.direction = this.seed % 2 ? 1 : -1;
     this.scale = .72 + seededNoise(this.seed, 1) * .7;
@@ -97,11 +96,9 @@ class WishSwimmer {
     const drawWidth = drawHeight * (this.image.width / this.image.height);
     const context = drawingContext;
     context.save();
-    context.globalAlpha = (.42 + this.scale * .18) * arrivalAlpha;
+    context.globalAlpha = arrivalAlpha;
     context.globalCompositeOperation = 'screen';
-    context.filter = `hue-rotate(${this.data.hue || 0}deg) saturate(1.12) drop-shadow(0 0 20px rgba(75,190,201,.28))`;
     translate(this.x, this.y);
-    if (this.direction < 0) scale(-1, 1);
     rotate(Math.sin(frameCount * .005 + this.phase) * .08);
     image(this.image, 0, 0, drawWidth, drawHeight);
     resetMatrix();
@@ -213,3 +210,4 @@ document.querySelector('#fullscreen-button').addEventListener('click', toggleFul
 document.addEventListener('fullscreenchange', () => {
   document.querySelector('#fullscreen-button').textContent = document.fullscreenElement ? '전체 화면 닫기' : '전체 화면';
 });
+

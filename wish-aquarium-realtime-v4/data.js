@@ -25,4 +25,4 @@ const questions=[
 {axis:1,title:'당신의 소망은\n어떤 리듬으로 자라나요?',note:'마지막 질문입니다. 가장 자연스러운 방식을 골라 주세요.',answers:['스스로를 믿고 나의 때에 움직여요','새로운 환경을 만나며 가능성을 넓혀요','작은 행동을 차곡차곡 쌓아 올려요','나를 돌보며 천천히 다시 자라요','서로의 리듬을 맞추며 함께 나아가요','한 가지에 깊게 빠져 에너지를 모아요','껍질을 벗듯 새로운 형태로 변해요']}
 ];
 function scoreAnswers(answers){return [0,1].map(axis=>{const scores=Array(7).fill(0);questions.forEach((q,i)=>{if(q.axis===axis && Number.isInteger(answers[i]))scores[answers[i]]++;});const max=Math.max(...scores);for(let i=questions.length-1;i>=0;i--)if(questions[i].axis===axis&&scores[answers[i]]===max)return answers[i];return 0;});}
-function getCreature(s,w){return {id:`WA-${String(s*7+w+1).padStart(3,'0')}`,name:situations[s].prefix+ways[w].species,situation:situations[s],way:ways[w]};}
+

@@ -1,0 +1,4 @@
+node_modules/
+wish-aquarium-realtime-v4/assets/catalog/
+.env
+*.log
