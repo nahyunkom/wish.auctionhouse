@@ -12,15 +12,22 @@
 - 가로 화면 결과의 겹침 및 원형 잘림을 수정했다. 영상 버튼 44px, 저장·방류 버튼 64px을 확인했다.
 - 공유 기능이 지원된다고 표시돼도 실제 공유 창이 거절되는 경우 원본 다운로드로 이어지도록 보완했다. 성공·거절·사용자 취소·미지원 경우 및 바이트 보존 검증을 통과했다.
 
-## 배포 진행 상태
+## 운영 배포 완료
 
 - 운영: https://wish-auctionhouse.onrender.com
 - GitHub: nahyunkom/wish.auctionhouse, 작업 브랜치 creature-catalog-438.
 - 운영 main 기준 커밋 11b6d86140a4977a994c91a62b3313a1668b99bf를 확인했고 Render의 On Commit 자동 배포를 확인했다.
-- 브라우저 파일 업로드는 전체 용량으로 커밋 실패했다. Git 로컬 복사본 deploy-review에서 동일한 68개 자산 묶음을 올리는 중이다.
-- 원본 파일은 변경하지 않았다. 운영 배포 및 운영 사이트 검증이 끝나면 아래 기록과 루트 DEPLOYMENT-CHECKPOINT.json을 갱신한다.
+- 브라우저 업로드의 용량 제한을 피하기 위해 Git으로 동일한 68개 묶음을 올렸고 운영 main에 정상 반영했다.
+- 원본 파일은 변경하지 않았다. 운영 배포 커밋: 921a571654775063a3dab727f9b719d4f76b2569. Render 배포 ID: dep-dbd0voc9v7es73c33830. Live 상태 확인 완료.
 
 ## 검증 범위의 한계
 
 - 실제 iPad Safari와 iOS 사진 앱 저장은 아직 확인하지 않았다. 가로 화면 검증은 데스크톱 Edge에서 수행했다.
 - 모든 영상 주소는 응답 여부를 검사했고, 실제 재생은 대표 조합을 브라우저에서 확인했다.
+
+## 운영 검증 결과
+
+- /health: ok=true, catalogCount=438.
+- 운영 결과 원장과 검증본 일치. PNG 438개 모두 HTTP 200, image/png 및 원본 파일 크기 일치. 대표 3개 원본 SHA-256 일치.
+- 실제 운영 브라우저에서 진단 → WC-6ee8ade5c4f5 결과 PNG 및 영상 재생 → 공유수족관 도착과 생물 수 01을 확인했다.
+- 운영 검증 기록: 작업 루트 PRODUCTION-VERIFICATION.json, evidence/production-result.png, evidence/production-aquarium.png.
