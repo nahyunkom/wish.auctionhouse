@@ -207,3 +207,25 @@ button { font: inherit; }
   * { animation: none !important; transition: none !important; }
 }
 
+
+.aquarium-controls { display:flex; gap:10px; align-items:flex-end; pointer-events:auto; }
+.water-settings { position:relative; font-size:12px; }
+.water-settings summary, #fullscreen-button { min-height:44px; display:flex; align-items:center; justify-content:center; border:1px solid #587e8c; border-radius:8px; padding:10px 16px; background:rgba(2,18,33,.8); color:#d0e7ef; cursor:pointer; touch-action:manipulation; }
+.water-settings summary { list-style:none; }
+.water-settings summary::-webkit-details-marker { display:none; }
+.water-settings[open] summary { border-color:#8cdde9; }
+.water-panel { position:absolute; bottom:56px; right:0; width:300px; max-width:calc(100vw - 44px); padding:20px; border:1px solid #46667d; border-radius:14px; background:rgba(2,18,35,.97); box-shadow:0 12px 40px #0005; color:#deeff5; }
+.water-label { display:block; margin-bottom:10px; color:#a6c5d3; }
+.water-choices { display:flex; gap:8px; margin-bottom:20px; }
+.water-choices button { flex:1; min-height:44px; border:1px solid #476276; border-radius:8px; background:#071727; color:#adc5d3; cursor:pointer; }
+.water-choices button[aria-pressed='true'] { background:#125078; color:#f1fbff; border-color:#7bd2e6; }
+.water-panel label { display:flex; justify-content:space-between; gap:12px; }
+#water-light { width:100%; height:44px; margin:6px 0; accent-color:#66d3ed; cursor:pointer; }
+#water-light:disabled { opacity:.35; }
+.aquarium-footer .water-note { font-size:11px; color:#95b5c5; letter-spacing:0; }
+.water-settings :focus-visible { outline:2px solid #a3ecff; outline-offset:4px; }
+body[data-water='blue'] { --muted:#a2c8dd; }
+body[data-water='blue'] .aquarium-vignette { background:radial-gradient(ellipse at 50% 36%,transparent 30%,rgba(0,9,25,.48) 100%); }
+body[data-water='blue'] .aquarium-counter p,body[data-water='blue'] .aquarium-footer>p { color:#9cbbce; }
+body[data-water='blue'] .aquarium-header { text-shadow:0 2px 15px #00152f; }
+@media(max-width:600px) { .aquarium-footer>p { display:none; } .aquarium-controls { margin-left:auto; } .water-panel { right:-82px; } }

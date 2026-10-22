@@ -56,7 +56,7 @@ function setup() {
 
 function draw() {
   // Clear every frame: screen blending over old pixels bleaches PNG colors.
-  background(0);
+  AquariumEnvironment.background(drawingContext,width,height,millis()/1000);
   firstFrame = false;
   drawBackgroundParticles();
   for (const swimmer of swimmers) {
@@ -135,9 +135,10 @@ class WishSwimmer {
     context.save();
     context.globalAlpha = arrivalAlpha;
     context.globalCompositeOperation = 'source-over';
+    context.globalCompositeOperation = AquariumEnvironment.composite();
     context.translate(this.x, this.y);
     context.rotate(Math.sin(age * .00035 + this.phase) * .018);
-    AquariumSprite.draw(context,this.image.canvas,this.image.silhouette,drawWidth,drawHeight,age/1000,this.phase);
+    AquariumSprite.draw(context,AquariumEnvironment.texture(this.image),this.image.silhouette,drawWidth,drawHeight,age/1000,this.phase);
     context.restore();
   }
 }

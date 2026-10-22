@@ -36,7 +36,22 @@
 
       <footer class="aquarium-footer">
         <p>각자의 마음에서 태어난 소망들이<br>하나의 바다에서 함께 살아갑니다.</p>
-        <button id="fullscreen-button" type="button">전체 화면</button>
+        <div class="aquarium-controls">
+          <details class="water-settings">
+            <summary>바다와 조명</summary>
+            <div class="water-panel">
+              <span class="water-label">바다 색상</span>
+              <div class="water-choices" role="group" aria-label="바다 색상">
+                <button type="button" data-water-choice="black" aria-pressed="true">검정 심해</button>
+                <button type="button" data-water-choice="blue" aria-pressed="false">깊은 파랑</button>
+              </div>
+              <label for="water-light">생물에 닿는 푸른빛 <output id="water-light-value" for="water-light">55%</output></label>
+              <input id="water-light" type="range" min="0" max="100" step="5" value="55" disabled>
+              <p class="water-note">파랑 바다에서 조명을 조절해 보세요.<br>선택한 설정은 이 기기에 저장됩니다.</p>
+            </div>
+          </details>
+          <button id="fullscreen-button" type="button">전체 화면</button>
+        </div>
       </footer>
     </main>
 
@@ -44,6 +59,7 @@
     <script src="config.js"></script>
     <script src="data.js"></script>
     <script src="aquarium-sprite.js"></script>
+    <script src="aquarium-environment.js"></script>
     <script src="shared-aquarium.js"></script>
   </body>
 </html>
