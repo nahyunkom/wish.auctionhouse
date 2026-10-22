@@ -63,5 +63,6 @@ body[data-scene=greeting] .giant-position{left:22vw;top:-35vh;opacity:.75}body[d
 .catalog-video-controls span{font-size:11px;line-height:1.7;color:#92a7ad}
 .catalog-tank .tank-label{z-index:2;background:#000b;padding:10px}
 .result-method-title{font-size:.55em;font-weight:300;line-height:1.9;color:#9fbac1}
+.result .catalog-tank{width:100%;aspect-ratio:auto;max-height:none;align-self:start;border-radius:0}
 @media(min-width:1000px){.catalog-options{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-survey{max-width:1120px}.result-grid{grid-template-columns:minmax(300px,.9fr) minmax(0,1.1fr);gap:48px}.catalog-tank{position:sticky;top:28px;height:calc(100svh - 160px);min-height:530px}}
 @media(max-width:760px){.catalog-tank{height:64svh;min-height:400px}.catalog-video-controls{left:14px;right:14px;bottom:70px}.catalog-options .detail-choice{min-height:82px}}

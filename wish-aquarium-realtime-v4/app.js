@@ -173,7 +173,7 @@ function renderQuestion() {
           </button>`).join('')}
       </div>
       <button class="primary next" id="next" ${answers[step] === undefined ? 'disabled' : ''}>
-        ${step === 5 ? '나의 소망생물 만나기' : '다음 수심으로'} <span aria-hidden="true">↓</span>
+        ${step === 5 ? '소망의 세부 형태 고르기' : '다음 수심으로'} <span aria-hidden="true">↓</span>
       </button>
     </section>`;
 

@@ -1,5 +1,7 @@
 const displayConfig = window.WISH_AQUARIUM_CONFIG || {};
-const creatureImages = [];
+const creatureTextures = new Map();
+const textureQueue = [];
+let activeTextureLoads = 0;
 const swimmers = [];
 const arrivals = [];
 let socket = null;
@@ -8,6 +10,29 @@ let firstFrame = true;
 let backgroundParticles = [];
 
 function preload() {}
+
+// Keep original PNGs intact; bound only the projection's in-memory textures.
+function getCreatureTexture(url) {
+  if (creatureTextures.has(url)) return creatureTextures.get(url);
+  if (creatureTextures.size >= 128) creatureTextures.delete(creatureTextures.keys().next().value);
+  const promise = new Promise(resolve => { textureQueue.push({url,resolve}); });
+  creatureTextures.set(url,promise);
+  pumpTextureQueue();
+  return promise;
+}
+
+function pumpTextureQueue() {
+  while(activeTextureLoads < 2 && textureQueue.length) {
+    const job=textureQueue.shift();
+    activeTextureLoads++;
+    const finish=image=>{activeTextureLoads--;job.resolve(image);pumpTextureQueue();};
+    loadImage(job.url, loaded=>{
+      const longest=Math.max(loaded.width,loaded.height);
+      if(longest>768) loaded.resize(Math.max(1,Math.round(loaded.width*768/longest)),Math.max(1,Math.round(loaded.height*768/longest)));
+      finish(loaded);
+    }, ()=>{creatureTextures.delete(job.url);finish(null);});
+  }
+}
 
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
@@ -65,7 +90,7 @@ class WishSwimmer {
     this.id = data.id;
     this.image = null;
     if(typeof data.imageUrl==='string' && /^assets\/catalog\/WC-[a-f0-9]{12}\.png$/.test(data.imageUrl)) {
-      loadImage(data.imageUrl, loaded=>{this.image=loaded;}, ()=>{});
+      getCreatureTexture(data.imageUrl).then(loaded=>{this.image=loaded;});
     }
     this.seed = Number(data.seed) || Math.floor(Math.random() * 100000);
     this.direction = this.seed % 2 ? 1 : -1;
