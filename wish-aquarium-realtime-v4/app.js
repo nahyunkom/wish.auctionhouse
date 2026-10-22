@@ -457,7 +457,7 @@ async function saveCreatureImage() {
   const originalMarkup = button.innerHTML;
   button.disabled = true;
   button.classList.add('is-busy');
-  button.innerHTML = '<span><small>CREATING IMAGE</small>생물 이미지를 만드는 중</span><span aria-hidden="true">···</span>';
+  button.innerHTML = '<span><small>PREPARING IMAGE</small>원본 이미지를 준비하는 중</span><span aria-hidden="true">···</span>';
   announceResultAction('원본 생물 이미지를 준비하고 있어요.', 'pending');
 
   try {
@@ -472,12 +472,19 @@ async function saveCreatureImage() {
       canShare = false;
     }
     if (canShare) {
-      await navigator.share({
-        files: [file],
-        title: `나의 소망생물 · ${currentResult.creature.name}`,
-        text: '소망경매장에서 발견한 나의 소망생물입니다.'
-      });
-      announceResultAction('휴대폰의 저장·공유 메뉴로 원본 이미지를 보냈어요.', 'success');
+      try {
+        await navigator.share({
+          files: [file],
+          title: `나의 소망생물 · ${currentResult.creature.name}`,
+          text: '소망경매장에서 발견한 나의 소망생물입니다.'
+        });
+        announceResultAction('저장·공유 메뉴로 원본 이미지를 보냈어요.', 'success');
+      } catch (shareError) {
+        if (shareError?.name === 'AbortError') throw shareError;
+        // A browser may advertise file sharing but reject it after the PNG fetch.
+        downloadBlob(blob, filename);
+        announceResultAction('공유 창을 열 수 없어 원본 PNG 다운로드를 시작했어요.', 'success');
+      }
     } else {
       downloadBlob(blob, filename);
       announceResultAction('생물 이미지가 저장되었습니다.', 'success');
