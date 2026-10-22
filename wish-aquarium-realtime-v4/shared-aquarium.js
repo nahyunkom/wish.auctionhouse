@@ -98,15 +98,21 @@ class WishSwimmer {
     this.baseHeight = Math.min(windowHeight * .31, Math.max(150, windowWidth * .16)) * this.scale;
     this.x = isNew ? width * .5 : seededNoise(this.seed, 2) * width;
     this.y = isNew ? height * .53 : height * (.16 + seededNoise(this.seed, 3) * .68);
-    this.speed = this.direction * (.18 + seededNoise(this.seed, 4) * .42);
+    this.baseY = this.y;
+    this.speed = this.direction * (4 + seededNoise(this.seed, 4) * 5);
+    this.bobAmount = 3 + seededNoise(this.seed, 6) * 3;
     this.phase = seededNoise(this.seed, 5) * TWO_PI;
     this.bornAt = millis();
+    this.lastUpdateAt = this.bornAt;
     this.isNew = isNew;
   }
 
   update() {
-    this.x += this.speed;
-    this.y += Math.sin(frameCount * .007 + this.phase) * .08;
+    const now = millis();
+    const seconds = Math.min(.1, Math.max(0, now - this.lastUpdateAt) / 1000);
+    this.lastUpdateAt = now;
+    this.x += this.speed * seconds;
+    this.y = this.baseY + Math.sin((now - this.bornAt) * .00045 + this.phase) * this.bobAmount;
     const margin = this.baseHeight * 1.2;
     if (this.direction > 0 && this.x > width + margin) this.x = -margin;
     if (this.direction < 0 && this.x < -margin) this.x = width + margin;
@@ -116,15 +122,14 @@ class WishSwimmer {
     if (!this.image?.width) return;
     const age = Math.max(0, millis() - this.bornAt);
     const arrivalAlpha = this.isNew ? Math.min(1, age / 1400) : 1;
-    const pulse = 1 + Math.sin(frameCount * .012 + this.phase) * .035;
-    const drawHeight = this.baseHeight * pulse;
+    const drawHeight = this.baseHeight;
     const drawWidth = drawHeight * (this.image.width / this.image.height);
     const context = drawingContext;
     context.save();
     context.globalAlpha = arrivalAlpha;
     context.globalCompositeOperation = 'screen';
     translate(this.x, this.y);
-    rotate(Math.sin(frameCount * .005 + this.phase) * .08);
+    rotate(Math.sin(age * .00035 + this.phase) * .018);
     image(this.image, 0, 0, drawWidth, drawHeight);
     resetMatrix();
     context.restore();
