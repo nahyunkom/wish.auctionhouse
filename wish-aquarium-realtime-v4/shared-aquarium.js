@@ -27,9 +27,18 @@ function pumpTextureQueue() {
     activeTextureLoads++;
     const finish=image=>{activeTextureLoads--;job.resolve(image);pumpTextureQueue();};
     loadImage(job.url, loaded=>{
+      try {
       const longest=Math.max(loaded.width,loaded.height);
       if(longest>768) loaded.resize(Math.max(1,Math.round(loaded.width*768/longest)),Math.max(1,Math.round(loaded.height*768/longest)));
+      loaded.loadPixels();
+      loaded.silhouette = AquariumSprite.mask(loaded.pixels,loaded.width,loaded.height);
+      loaded.updatePixels();
       finish(loaded);
+      } catch(error) {
+        console.warn('Could not prepare aquarium PNG',job.url,error);
+        creatureTextures.delete(job.url);
+        finish(null);
+      }
     }, ()=>{creatureTextures.delete(job.url);finish(null);});
   }
 }
@@ -46,13 +55,9 @@ function setup() {
 }
 
 function draw() {
-  if (firstFrame) {
-    background(0);
-    firstFrame = false;
-  } else {
-    fill(0, 0, 0, 34);
-    rect(0, 0, width, height);
-  }
+  // Clear every frame: screen blending over old pixels bleaches PNG colors.
+  background(0);
+  firstFrame = false;
   drawBackgroundParticles();
   for (const swimmer of swimmers) {
     swimmer.update();
@@ -119,19 +124,20 @@ class WishSwimmer {
   }
 
   draw() {
-    if (!this.image?.width) return;
+    if (!this.image?.width || this.image.silhouette.empty) return;
     const age = Math.max(0, millis() - this.bornAt);
     const arrivalAlpha = this.isNew ? Math.min(1, age / 1400) : 1;
-    const drawHeight = this.baseHeight;
-    const drawWidth = drawHeight * (this.image.width / this.image.height);
+    const bounds=this.image.silhouette.bounds;
+    const ratio=bounds.width/bounds.height;
+    const drawHeight = Math.min(this.baseHeight,windowWidth*.30/ratio);
+    const drawWidth = drawHeight * ratio;
     const context = drawingContext;
     context.save();
     context.globalAlpha = arrivalAlpha;
-    context.globalCompositeOperation = 'screen';
-    translate(this.x, this.y);
-    rotate(Math.sin(age * .00035 + this.phase) * .018);
-    image(this.image, 0, 0, drawWidth, drawHeight);
-    resetMatrix();
+    context.globalCompositeOperation = 'source-over';
+    context.translate(this.x, this.y);
+    context.rotate(Math.sin(age * .00035 + this.phase) * .018);
+    AquariumSprite.draw(context,this.image.canvas,this.image.silhouette,drawWidth,drawHeight,age/1000,this.phase);
     context.restore();
   }
 }
@@ -222,6 +228,7 @@ function windowResized() {
   backgroundParticles = Array.from({ length: 190 }, (_, index) => makeBackgroundParticle(index));
   for (const swimmer of swimmers) {
     swimmer.y = constrain(swimmer.y, height * .12, height * .86);
+    swimmer.baseY = swimmer.y;
     swimmer.baseHeight = Math.min(windowHeight * .31, Math.max(150, windowWidth * .16)) * swimmer.scale;
   }
   firstFrame = true;

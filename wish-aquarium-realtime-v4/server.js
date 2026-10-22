@@ -82,7 +82,8 @@ for (const filename of [
   'catalog-ui.js',
   'particles.js',
   'shared-aquarium.css',
-  'shared-aquarium.js'
+  'shared-aquarium.js',
+  'aquarium-sprite.js'
 ]) {
   app.get(`/${filename}`, (_request, response) => response.sendFile(path.join(root, filename)));
 }

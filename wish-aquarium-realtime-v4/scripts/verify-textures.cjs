@@ -1,14 +1,15 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const jobs=[];
-const context={window:{WISH_AQUARIUM_CONFIG:{}},document:{querySelector:()=>({addEventListener(){}}),addEventListener(){}},loadImage:(url,ok,fail)=>jobs.push({url,ok,fail})};
+const context={AquariumSprite:require('../aquarium-sprite.js'),window:{WISH_AQUARIUM_CONFIG:{}},document:{querySelector:()=>({addEventListener(){}}),addEventListener(){}},loadImage:(url,ok,fail)=>jobs.push({url,ok,fail})};
+function texture(properties){return Object.assign({loadPixels(){this.pixels=new Uint8Array(this.width*this.height*4)},updatePixels(){}},properties);}
 vm.createContext(context);vm.runInContext(fs.readFileSync(path.resolve(__dirname,'../shared-aquarium.js'),'utf8'),context);
 const first=context.getCreatureTexture('one.png');
 assert.equal(first,context.getCreatureTexture('one.png'),'Repeated creatures share a texture.');
 const second=context.getCreatureTexture('two.png'),third=context.getCreatureTexture('three.png');
 assert.equal(jobs.length,2,'Decode at most two full-resolution sources at once.');
-const image={width:6880,height:3856,resize(w,h){this.width=w;this.height=h;}};
+const image=texture({width:6880,height:3856,resize(w,h){this.width=w;this.height=h;}});
 jobs[0].ok(image);
 assert.equal(Math.max(image.width,image.height),768,'Bound projection texture memory.');
 assert.equal(jobs.length,3,'The next source starts when a slot opens.');
-jobs[1].fail();jobs[2].ok({width:320,height:160,resize(){throw new Error('Small image must not upscale.')}});
-Promise.all([first,second,third]).then(async results=>{assert.equal(results[0],image);assert.equal(results[1],null);assert.equal(results[2].width,320);const retry=context.getCreatureTexture('two.png');assert.equal(jobs.length,4,'Failed textures can retry.');jobs[3].ok({width:320,height:160});await retry;console.log('PASS: bounded projection decoding, shared textures, original aspect ratio, no upscaling, and failed-image retry.');}).catch(error=>{console.error(error);process.exitCode=1;});
+jobs[1].fail();jobs[2].ok(texture({width:320,height:160,resize(){throw new Error('Small image must not upscale.')}}));
+Promise.all([first,second,third]).then(async results=>{assert.equal(results[0],image);assert.equal(results[1],null);assert.equal(results[2].width,320);const retry=context.getCreatureTexture('two.png');assert.equal(jobs.length,4,'Failed textures can retry.');jobs[3].ok(texture({width:320,height:160}));await retry;console.log('PASS: bounded projection decoding, shared textures, original aspect ratio, no upscaling, and failed-image retry.');}).catch(error=>{console.error(error);process.exitCode=1;});
