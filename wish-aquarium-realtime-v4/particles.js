@@ -32,7 +32,7 @@
   let w=1,h=1,dpr=1,t=0,last=0,raf=0,paused=false,visible=!document.hidden;
   let px=-10000,py=-10000,pressure=0;
   let cx=0,cy=0,radius=1,currentScene='welcome';
-  const sceneTargets={welcome:[.62,.51,1],greeting:[.73,.51,.9],reply:[.26,.49,.95],introduction:[.76,.49,1.02],question:[.23,.51,.91],discovery:[.5,.5,1.12],result:[.82,.52,.92]};
+  const sceneTargets={welcome:[.62,.51,1],greeting:[.73,.51,.9],reply:[.26,.49,.95],introduction:[.76,.49,1.02],question:[.23,.51,.91],passage:[.78,.5,.58],discovery:[.5,.5,1.12],result:[.82,.52,.92]};
   let position=[.62,.51,1], target=position.slice();
   function resize(){w=window.innerWidth;h=window.innerHeight;dpr=Math.min(window.devicePixelRatio||1,1.75);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);if(gl)gl.viewport(0,0,canvas.width,canvas.height);wake();}
   function geometry(){const mobile=w<=760;cx=w*(mobile?.54:position[0]);cy=h*(mobile?(currentScene==='welcome'?.47:.46):position[1]);radius=Math.min(h*(mobile?.36:.5),w*(mobile?.58:.41))*position[2];}
@@ -82,6 +82,8 @@
   window.addEventListener('resize',resize,{passive:true});
   window.addEventListener('pointermove',e=>{if(paused)return;px=e.clientX;py=e.clientY;pressure=Math.max(pressure,.7);wake();},{passive:true});
   window.addEventListener('pointerdown',e=>{if(paused)return;px=e.clientX;py=e.clientY;pressure=1.8;wake();},{passive:true});
+  // Lets a held or rubbing touch keep pressing the membrane (diagnosis interactions).
+  window.wishMembraneTouch=(x,y,p)=>{if(paused)return;px=x;py=y;pressure=Math.max(pressure,p);wake();};
   document.addEventListener('visibilitychange',()=>{visible=!document.hidden;last=0;if(!visible&&raf){cancelAnimationFrame(raf);raf=0;}if(visible)wake();});
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();if(raf)cancelAnimationFrame(raf);raf=0;visible=false;});
   canvas.addEventListener('webglcontextrestored',()=>{initializeGPU();visible=!document.hidden;last=0;resize();sync();});

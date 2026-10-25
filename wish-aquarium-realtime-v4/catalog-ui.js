@@ -58,22 +58,42 @@ function resetCatalogSelection() {
   selectedWishType = null;
 }
 
+// How many of the three answers on an axis pointed to a type, in plain words.
+function signalText(score) {
+  return score ? `세 질문 중 ${score}번` : '';
+}
+
 function showWishDetails(all = false) {
   clearTimeout(transitionTimer);
   setScene('question', 7);
-  const [situation] = scoreAnswers(answers);
-  const ownDirections = WishCatalog.directions(situation);
-  const choices = all || !ownDirections.length ? WishCatalog.directions() : ownDirections;
-  const message = ownDirections.length
-    ? '당신의 답변에서 가까워진 소망을 조금 더 구체적으로 들여다볼까요?'
-    : '이 방향의 생물은 아직 준비 중이에요. 지금 만날 수 있는 소망 중 가까운 것을 골라 주세요.';
+  // Every direction the answers touched, closest first. Only directions with
+  // real creatures become choices; an empty direction is named, never replaced.
+  const ranked = rankAxis(answers, 0).filter(row => row.score > 0);
+  const top = ranked[0];
+  const topIsEmpty = top && !WishCatalog.directions(top.index).length;
+  const groups = all ? [] : ranked
+    .map(row => ({ row, items: WishCatalog.directions(row.index) }))
+    .filter(group => group.items.length);
+  const showEverything = all || !groups.length;
+  const choices = showEverything ? WishCatalog.directions() : groups.flatMap(group => group.items);
+  let message = '세 개의 답이 가리킨 소망부터 보여 드려요. 지금의 마음에 가장 가까운 모습을 골라 주세요.';
+  if (topIsEmpty) message = `답변은 <strong>${escapeHtml(situations[top.index].label)}</strong>에 가장 가까웠어요. 이 방향의 생물은 아직 심해에서 깨어나는 중이라, ${groups.length ? '함께 가까웠던 소망부터 보여 드려요.' : '지금 만날 수 있는 소망 중에서 골라 주세요.'}`;
+  else if (all) message = '지금 수족관에서 만날 수 있는 모든 소망이에요. 마음이 끌리는 쪽을 골라 주세요.';
+  let index = 0;
+  const optionButton = choice => `<button class="answer detail-choice" data-wish-index="${index}"><span class="num">${String(++index).padStart(2,'0')}</span><span><strong>${escapeHtml(choice.name)}</strong><small>${escapeHtml(wishDescriptions[choice.name] || choice.category)}</small></span></button>`;
+  const body = showEverything
+    ? `<div class="answers catalog-options">${choices.map(optionButton).join('')}</div>`
+    : groups.map((group, order) => `<div class="choice-group${order === 0 && !topIsEmpty ? ' is-closest' : ''}">
+        <p class="choice-group-head"><span>${escapeHtml(situations[group.row.index].label)}</span><span>${signalText(group.row.score)} 이 방향을 골랐어요${order === 0 && !topIsEmpty ? ' · 가장 가까움' : ''}</span></p>
+        <div class="answers catalog-options">${group.items.map(optionButton).join('')}</div>
+      </div>`).join('');
   app.innerHTML = `<section class="survey catalog-survey fade-in">
     <div class="survey-top"><button class="text-button" id="detail-back">← 이전 질문</button><span>소망의 세부 형태</span><span>07 / 08</span></div>
     <div class="progress"><div style="width:87.5%"></div></div>
     <div class="question-head"><div><span class="question-no">01 — 소망의 방향</span><h2>당신의 소망은<br>어떤 모습에 가까운가요?</h2></div></div>
     <p class="note">${message}</p>
-    <div class="answers catalog-options">${choices.map((choice,index)=>`<button class="answer detail-choice" data-wish-index="${index}"><span class="num">${String(index+1).padStart(2,'0')}</span><span><strong>${escapeHtml(choice.name)}</strong><small>${escapeHtml(wishDescriptions[choice.name] || choice.category)}</small></span></button>`).join('')}</div>
-    ${ownDirections.length && !all ? '<button class="text-button show-all" id="other-wishes">다른 방향의 소망도 살펴보기 →</button>' : ''}
+    ${body}
+    ${showEverything ? '' : '<button class="text-button show-all" id="other-wishes">다른 방향의 소망도 살펴보기 →</button>'}
   </section>`;
   app.querySelectorAll('[data-wish-index]').forEach(button=>button.onclick=()=>{
     selectedWishType = choices[Number(button.dataset.wishIndex)].name;
@@ -88,16 +108,32 @@ function showWishDetails(all = false) {
 
 function showMethodDetails() {
   setScene('question', 8);
-  const [,way] = scoreAnswers(answers);
-  const choices = WishCatalog.methods(selectedWishType,way);
+  const choices = WishCatalog.methods(selectedWishType);
   if(!choices.length) { showWishDetails(true); return; }
+  // Group the real methods under their way, ordered by how the answers ranked
+  // the ways. Ways the answers never touched stay one tap away, not hidden.
+  const ranked = rankAxis(answers, 1);
+  const groups = ranked
+    .map(row => ({ row, items: choices.filter(choice => choice.wayIndex === row.index) }))
+    .filter(group => group.items.length);
+  const near = groups.filter(group => group.row.score > 0);
+  const rest = groups.filter(group => group.row.score === 0);
+  const restOpen = !near.length || rest.some(group => group.items.some(item => item.id === selectedCatalogId));
+  let number = 0;
+  const groupMarkup = (group, order) => `<div class="choice-group${order === 0 && group.row.score ? ' is-closest' : ''}">
+      <p class="choice-group-head"><span>${escapeHtml(ways[group.row.index].label)} · ${escapeHtml(ways[group.row.index].verb)}</span><span>${group.row.score ? `${signalText(group.row.score)} 이 방식을 골랐어요${order === 0 ? ' · 가장 가까움' : ''}` : ''}</span></p>
+      <div class="answers catalog-options">${group.items.map(choice=>`<button class="answer detail-choice ${selectedCatalogId===choice.id?'selected':''}" data-creature-id="${choice.id}" aria-pressed="${selectedCatalogId===choice.id}"><span class="num">${String(++number).padStart(2,'0')}</span><span><strong>${escapeHtml(choice.methodType)}</strong><small>${escapeHtml(methodDescriptions[choice.methodType])}</small></span></button>`).join('')}</div>
+    </div>`;
   app.innerHTML = `<section class="survey catalog-survey fade-in">
     <div class="survey-top"><button class="text-button" id="method-back">← 소망 다시 고르기</button><span>소망을 이루는 세부 방식</span><span>08 / 08</span></div>
     <div class="progress"><div style="width:100%"></div></div>
     <div class="question-head"><div><span class="question-no">02 — 소망을 키우는 방식</span><h2>이 소망을,<br>어떻게 키워 가고 싶나요?</h2></div></div>
-    <p class="note"><strong>${escapeHtml(selectedWishType)}</strong> · 앞선 답변에 가까운 방식부터 보여드려요. 가장 자연스러운 하나를 골라 주세요.</p>
-    <div class="answers catalog-options">${choices.map((choice,index)=>`<button class="answer detail-choice ${selectedCatalogId===choice.id?'selected':''}" data-creature-id="${choice.id}" aria-pressed="${selectedCatalogId===choice.id}"><span class="num">${String(index+1).padStart(2,'0')}</span><span><strong>${escapeHtml(choice.methodType)}</strong><small>${escapeHtml(methodDescriptions[choice.methodType])}</small></span></button>`).join('')}</div>
-    <button class="primary next" id="meet-creature" ${selectedCatalogId?'':'disabled'}>나의 소망생물 만나기 <span aria-hidden="true">↓</span></button>
+    <p class="note"><strong>${escapeHtml(selectedWishType)}</strong> · 세 개의 답이 가리킨 방식부터 보여 드려요. 가장 자연스러운 하나를 골라 주세요.</p>
+    ${near.map(groupMarkup).join('')}
+    ${rest.length ? (near.length
+      ? `<details class="more-choices"${restOpen ? ' open' : ''}><summary>다른 방식도 살펴보기</summary>${rest.map((group,order)=>groupMarkup(group, order + near.length)).join('')}</details>`
+      : rest.map(groupMarkup).join('')) : ''}
+    <div class="sticky-next"><button class="primary next" id="meet-creature" ${selectedCatalogId?'':'disabled'}>나의 소망생물 만나기 <span aria-hidden="true">↓</span></button></div>
   </section>`;
   app.querySelectorAll('[data-creature-id]').forEach(button=>button.onclick=()=>{
     selectedCatalogId = button.dataset.creatureId;

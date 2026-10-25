@@ -80,6 +80,7 @@ for (const filename of [
   'creature-catalog.js',
   'catalog-model.js',
   'catalog-ui.js',
+  'wish-interactions.js',
   'particles.js',
   'shared-aquarium.css',
   'shared-aquarium.js',

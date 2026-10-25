@@ -66,3 +66,95 @@ body[data-scene=greeting] .giant-position{left:22vw;top:-35vh;opacity:.75}body[d
 .result .catalog-tank{width:100%;aspect-ratio:auto;max-height:none;align-self:start;border-radius:0}
 @media(min-width:1000px){.catalog-options{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-survey{max-width:1120px}.result-grid{grid-template-columns:minmax(300px,.9fr) minmax(0,1.1fr);gap:48px}.catalog-tank{position:sticky;top:28px;height:calc(100svh - 160px);min-height:530px}}
 @media(max-width:760px){.catalog-tank{height:64svh;min-height:400px}.catalog-video-controls{left:14px;right:14px;bottom:70px}.catalog-options .detail-choice{min-height:82px}}
+
+
+/* ===== 2026-10-26 · iPad landscape diagnosis, choice groups, hand interactions ===== */
+/* Headings get programmatic focus for screen readers; no visible box for touch users. */
+[tabindex="-1"]:focus{outline:none}
+/* Korean breaks between words, not inside them. */
+body{word-break:keep-all;overflow-wrap:break-word}
+
+/* Selection screens: say which answers pointed where. */
+.choice-group{margin:0 0 18px}
+.choice-group-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin:0 0 9px;padding-bottom:7px;border-bottom:1px solid #4b737b33;font-size:12px;letter-spacing:.4px;color:#7f999e}
+.choice-group-head span:first-child{color:#b9d3d6;font-size:13px;letter-spacing:.2px}
+.choice-group.is-closest .choice-group-head span:first-child{color:#c6d98f}
+.choice-group.is-closest .choice-group-head span:last-child{color:#a8bd7e}
+.more-choices{margin:6px 0 10px}
+.more-choices>summary{list-style:none;cursor:pointer;min-height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 4px;color:#90a9ae;font-size:14px;border-bottom:1px solid #47646a44}
+.more-choices>summary::-webkit-details-marker{display:none}
+.more-choices>summary:after{content:'＋';font-size:18px;color:#7da4aa}
+.more-choices[open]>summary:after{content:'－'}
+.more-choices[open]>summary{margin-bottom:16px}
+.note strong{color:#d4e6e8;font-weight:500}
+
+/* The next button stays reachable without scrolling to the bottom of a long list. */
+.sticky-next{position:sticky;bottom:0;z-index:3;padding:14px 0 calc(14px + env(safe-area-inset-bottom));margin-top:10px;background:linear-gradient(#0000,#000d 38%)}
+.sticky-next .next{margin-top:0}
+
+/* Exploration trail on the result. */
+.record-item.trail p+p{margin-top:6px}
+.record-item.trail strong{color:#d4e7e9;font-weight:500}
+
+/* --- Depth passage: hold the wish --- */
+.passage{min-height:calc(100svh - 140px);display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"copy pad" "status pad" "skip pad";align-content:center;align-items:center;column-gap:7vw;max-width:1000px;margin:auto;padding:24px 6vw}
+.passage-copy{grid-area:copy}
+.passage-copy h2{font-size:clamp(26px,3vw,36px);font-weight:300;line-height:1.5;letter-spacing:-1px;color:#dae9eb;margin:16px 0 14px}
+.passage-copy p{color:#91a6aa;font-size:15px;line-height:1.85;margin:0}
+.passage-status{grid-area:status;color:#7f999e;font-size:13px;line-height:1.7;min-height:44px;margin:22px 0 0}
+.passage-skip{grid-area:skip;justify-self:start;background:none;border:0;padding:12px 0;min-height:48px}
+.hold-pad{grid-area:pad;--hold:0;position:relative;width:min(300px,34vw);aspect-ratio:1;border-radius:50%;border:0;padding:0;background:radial-gradient(circle,#0d2a30 0,#05121588 55%,transparent 70%);color:#cfe6e8;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform .5s}
+.hold-pad svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.hold-track{fill:none;stroke:#8bc9d22b;stroke-width:1.5}
+.hold-ring{fill:none;stroke:#b3c781;stroke-width:3;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;filter:drop-shadow(0 0 6px #b3c78188)}
+.hold-core{position:absolute;left:50%;top:50%;width:34%;height:34%;border-radius:50%;transform:translate(-50%,-50%) scale(calc(.55 + var(--hold) * .75));background:radial-gradient(circle,#e9f7c4 0,#b3c781aa 30%,#84dce333 62%,transparent 72%);opacity:calc(.25 + var(--hold) * .75);transition:transform .15s}
+.hold-label{position:relative;z-index:1;font-size:14px;line-height:1.6;letter-spacing:.3px;pointer-events:none}
+.hold-pad.is-holding{transform:scale(.97)}
+.hold-pad.is-complete{transform:scale(1.04)}
+.hold-pad.is-complete .hold-label{color:#122014;font-weight:500}
+.hold-pad.is-complete .hold-core{width:70%;height:70%;background:radial-gradient(circle,#f1fbd6 0,#c7dc8f 45%,#84dce344 70%,transparent 78%)}
+body[data-scene=passage] #membrane,body[data-scene=passage] #membrane-fallback{opacity:.7}
+body[data-scene=passage] .ocean-shade{background:#0005}
+
+/* --- Reveal: clear the dark water to meet the creature --- */
+.reveal{min-height:calc(100svh - 140px);display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1fr);align-items:center;gap:5vw;max-width:1100px;margin:auto;padding:20px 5vw}
+.reveal-copy h2{font-size:clamp(26px,2.9vw,36px);font-weight:300;line-height:1.5;letter-spacing:-1px;color:#dae9eb;margin:16px 0 14px}
+.reveal-copy p{color:#91a6aa;font-size:15px;line-height:1.8;min-height:54px;margin:0 0 10px}
+.reveal-copy .text-button{background:none;border:0;padding:12px 0;min-height:48px}
+.reveal-tank{position:relative;width:100%;max-width:560px;max-height:calc(100svh - 190px);aspect-ratio:1;justify-self:center;background:#000;border:1px solid #25414a;overflow:hidden}
+.reveal-creature{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none}
+.reveal-ink{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;transition:opacity 1.2s ease}
+.reveal-tank.is-revealed .reveal-ink{opacity:0;pointer-events:none}
+.reveal-meter{position:absolute;left:18px;right:18px;bottom:16px;height:2px;background:#ffffff14;pointer-events:none}
+.reveal-meter i{display:block;height:100%;width:0;background:#b3c781;transition:width .2s}
+.reveal-tank.is-revealed .reveal-meter{opacity:0;transition:opacity .6s}
+
+/* --- iPad landscape (1024×768 baseline, also 1180×820 / 1366×1024) --- */
+@media (min-width:900px) and (orientation:landscape){
+  .survey{max-width:960px;padding:18px 40px 8px}
+  .progress{margin:12px 0 18px}
+  .question-head h2{font-size:28px;line-height:1.45;margin:6px 0 0}
+  .question-head .tiny-creature{width:84px;height:84px}
+  .note{font-size:14px;margin:8px 0 16px}
+  .answers{grid-template-columns:1fr 1fr;gap:10px}
+  .answer{min-height:62px;font-size:16px;line-height:1.5;padding:12px 18px}
+  .survey>.answers>.answer:last-child:nth-child(odd){grid-column:1/-1}
+  .catalog-options{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .catalog-options .detail-choice{min-height:84px;align-items:flex-start}
+  .catalog-options .detail-choice .num{padding-top:2px}
+  .catalog-options .detail-choice strong{font-size:16px}
+  .catalog-options .detail-choice small{font-size:12.5px;margin-top:4px;line-height:1.6}
+  .catalog-survey .show-all{margin-top:6px}
+  .sticky-next .next{max-width:420px;margin-left:auto}
+}
+
+@media (max-width:899px), (orientation:portrait){
+  .passage{grid-template-columns:1fr;grid-template-areas:"copy" "pad" "status" "skip";text-align:center;justify-items:center;row-gap:8px;padding:24px}
+  .hold-pad{width:min(260px,62vw);margin:18px 0 4px}
+  .passage-skip{justify-self:center}
+  .reveal{grid-template-columns:1fr;text-align:center;gap:18px;padding:16px 20px}
+  .reveal-tank{max-width:min(520px,92vw)}
+  .choice-group-head{flex-direction:column;gap:2px}
+}
+
+@media(prefers-reduced-motion:reduce){.hold-pad,.hold-core,.reveal-ink,.reveal-meter i{transition:none!important}}

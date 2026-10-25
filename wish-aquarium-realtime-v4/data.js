@@ -24,5 +24,11 @@ const questions=[
 {axis:1,title:'예상치 못한 물살이\n당신의 앞을 막는다면?',note:'어려움을 만났을 때의 나를 떠올려 보세요.',answers:['내 방향을 믿고 기회를 기다리거나 바로 실행해요','다른 해류를 시험하며 우회로를 찾아요','지금까지의 기록을 살피고 다시 반복해요','잠시 쉬면서 나를 보호하고 힘을 회복해요','도움을 주고받으며 함께 길을 만들어요','외부의 소음을 줄이고 원인에 집중해요','목표에 이르는 방식 자체를 바꿔요']},
 {axis:1,title:'당신의 소망은\n어떤 리듬으로 자라나요?',note:'가장 자연스러운 방식을 고른 뒤, 소망의 세부 모습을 만나 보세요.',answers:['스스로를 믿고 나의 때에 움직여요','새로운 환경을 만나며 가능성을 넓혀요','작은 행동을 차곡차곡 쌓아 올려요','나를 돌보며 천천히 다시 자라요','서로의 리듬을 맞추며 함께 나아가요','한 가지에 깊게 빠져 에너지를 모아요','껍질을 벗듯 새로운 형태로 변해요']}
 ];
+// Rank every type on one axis. Same rule as scoreAnswers for first place
+// (most chosen, ties go to the type picked last), then the rest in order.
+function rankAxis(answers,axis){const rows=Array.from({length:7},(_,index)=>({index,score:0,last:-1}));questions.forEach((q,i)=>{if(q.axis===axis&&Number.isInteger(answers[i])){rows[answers[i]].score++;rows[answers[i]].last=i;}});return rows.sort((a,b)=>b.score-a.score||b.last-a.last||a.index-b.index);}
+// Fixed, non-obvious answer order per question so the type order (경제→인정)
+// cannot be learned and repeated across questions. Stored answers keep the type index.
+const answerOrders=questions.map((_,q)=>{let seed=(q+1)*7919;const order=[0,1,2,3,4,5,6];for(let i=6;i>0;i--){seed=(seed*1664525+1013904223)>>>0;const j=seed%(i+1);[order[i],order[j]]=[order[j],order[i]];}return order;});
 function scoreAnswers(answers){return [0,1].map(axis=>{const scores=Array(7).fill(0);questions.forEach((q,i)=>{if(q.axis===axis && Number.isInteger(answers[i]))scores[answers[i]]++;});const max=Math.max(...scores);for(let i=questions.length-1;i>=0;i--)if(questions[i].axis===axis&&scores[answers[i]]===max)return answers[i];return 0;});}
 

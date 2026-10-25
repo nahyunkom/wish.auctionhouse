@@ -32,6 +32,7 @@ function focusHeading() {
 }
 
 function setScene(name, index = 0) {
+  if (typeof stopWishInteraction === 'function') stopWishInteraction();
   document.body.dataset.scene = name;
   document.documentElement.style.setProperty('--scene-turn', `${index * 11 - 14}deg`);
   document.documentElement.style.setProperty('--scene-hue', `${index * 13}deg`);
@@ -49,6 +50,7 @@ function home() {
   greetingChoice = '';
   currentResult = null;
   resetCatalogSelection();
+  if (typeof resetWishTrace === 'function') resetWishTrace();
   realtime.released = false;
   realtime.releasing = false;
   setScene('welcome');
@@ -125,7 +127,7 @@ function introduction() {
         <span class="axis-times" aria-hidden="true">×</span>
         <div><span>02</span><h2>어떻게 키우나요?</h2><p>소망을 향해 가는 방식</p></div>
       </div>
-      <p class="intro-small">정답은 없어요. 오늘의 나와 가장 가까운 답을 골라 주세요.<br>6개의 질문 · 약 2분</p>
+      <p class="intro-small">정답은 없어요. 오늘의 나와 가장 가까운 답을 골라 주세요.<br>6개의 질문과 2번의 세부 선택 · 약 3분</p>
     </div>
     <div class="intro-bottom">
       <button class="glass-button wide" id="dive">나의 소망생물 만나기 <span>↓</span></button>
@@ -138,6 +140,7 @@ function introduction() {
 
 function begin() {
   resetCatalogSelection();
+  if (typeof resetWishTrace === 'function') resetWishTrace();
   step = 0;
   answers = [];
   renderQuestion();
@@ -167,14 +170,14 @@ function renderQuestion() {
       </div>
       <p class="note">${question.note}</p>
       <div class="answers" role="group" aria-label="답변 선택">
-        ${question.answers.map((answer, index) => `
+        ${answerOrders[step].map((index, position) => `
           <button class="answer ${answers[step] === index ? 'selected' : ''}" data-choice="${index}" aria-pressed="${answers[step] === index}">
-            <span class="num">${String(index + 1).padStart(2, '0')}</span><span>${answer}</span>
+            <span class="num">${String(position + 1).padStart(2, '0')}</span><span>${question.answers[index]}</span>
           </button>`).join('')}
       </div>
-      <button class="primary next" id="next" ${answers[step] === undefined ? 'disabled' : ''}>
+      <div class="sticky-next"><button class="primary next" id="next" ${answers[step] === undefined ? 'disabled' : ''}>
         ${step === 5 ? '소망의 세부 형태 고르기' : '다음 수심으로'} <span aria-hidden="true">↓</span>
-      </button>
+      </button></div>
     </section>`;
 
   app.querySelectorAll('[data-choice]').forEach((button) => {
@@ -198,15 +201,18 @@ function renderQuestion() {
   };
   document.querySelector('#next').onclick = () => {
     if (answers[step] === undefined) return;
-    if (step < 5) {
-      step += 1;
-      renderQuestion();
-    } else showWishDetails();
+    const advance = () => { step += 1; renderQuestion(); };
+    // Crossing from "what you wish" to "how you grow it" passes through the depth passage.
+    if (questions[step + 1] && questions[step + 1].axis !== question.axis && typeof depthPassage === 'function') depthPassage(advance);
+    else if (step < 5) advance();
+    else showWishDetails();
   };
   focusHeading();
 }
 
 function discover() {
+  const entry = WishCatalog.get(selectedCatalogId);
+  if (entry && typeof revealCreature === 'function') { revealCreature(entry, showResult); return; }
   setScene('discovery', 9);
   app.innerHTML = `
     <section class="loading fade-in" role="status">
@@ -217,6 +223,42 @@ function discover() {
     </section>`;
   window.scrollTo({ top: 0, behavior: 'instant' });
   transitionTimer = setTimeout(showResult, 2200);
+}
+
+// Plain account of how this visitor reached this creature: what the answers
+// pointed to, what they chose themselves, and the trace their hands left.
+// Korean object particle 을/를 from the last Hangul syllable (ignoring brackets).
+function objectParticle(word) {
+  const letters = String(word).replace(/[^가-힣]/g, '');
+  const code = letters.charCodeAt(letters.length - 1) - 0xac00;
+  return code >= 0 && code % 28 === 0 ? '를' : '을';
+}
+
+function explorationTrail(entry) {
+  const lines = [];
+  const [wishTop] = rankAxis(answers, 0);
+  const [wayTop] = rankAxis(answers, 1);
+  const wishRow = rankAxis(answers, 0).find(row => row.index === entry.situationIndex);
+  const wayRow = rankAxis(answers, 1).find(row => row.index === entry.wayIndex);
+  if (wishTop && wishTop.score) {
+    if (wishTop.index === entry.situationIndex) lines.push(`세 개의 소망 질문 중 ${wishTop.score}번, <strong>${escapeHtml(entry.wishCategory)}</strong> 쪽 답을 골랐어요.`);
+    else if (wishRow && wishRow.score) lines.push(`답변은 ${escapeHtml(situations[wishTop.index].label)}에 가장 가까웠고, 함께 ${wishRow.score}번 고른 <strong>${escapeHtml(entry.wishCategory)}</strong>에서 소망을 골랐어요.`);
+    else lines.push(`답변은 ${escapeHtml(situations[wishTop.index].label)}에 가장 가까웠지만, 직접 <strong>${escapeHtml(entry.wishCategory)}</strong>을 찾아 골랐어요.`);
+  }
+  if (wayTop && wayTop.score) {
+    if (wayRow && wayRow.score) lines.push(`세 개의 방식 질문 중 ${wayRow.score}번, <strong>${escapeHtml(ways[entry.wayIndex].label)}</strong>에 가까운 답을 골랐어요.`);
+    else lines.push(`답변은 ${escapeHtml(ways[wayTop.index].label)}에 가까웠지만, 직접 <strong>${escapeHtml(ways[entry.wayIndex].label)}</strong>의 방식을 골랐어요.`);
+  }
+  lines.push(`그리고 그 안에서 <strong>${escapeHtml(entry.wishType)}</strong>과 <strong>${escapeHtml(entry.methodType)}</strong>${objectParticle(entry.methodType)} 직접 골라 이 생물을 만났어요.`);
+  const trace = typeof wishTrace === 'object' ? wishTrace : null;
+  if (trace && (trace.holdMs || trace.revealStrokes)) {
+    const parts = [];
+    if (trace.holdMs) parts.push(`${(trace.holdMs / 1000).toFixed(1)}초 동안 소망을 붙잡았고`);
+    if (trace.revealStrokes) parts.push(`${trace.revealStrokes}번 손을 뻗어 어두운 물을 걷어 냈어요`);
+    else parts.push('생물이 스스로 떠오르기를 기다렸어요');
+    lines.push(parts.join(', ') + '.');
+  }
+  return lines.map(line => `<p>${line}</p>`).join('');
 }
 
 function makeReleaseId() {
@@ -247,6 +289,7 @@ function showResult() {
           <div class="record">
             <div class="record-item"><h3>당신이 품은 소망</h3><p>${escapeHtml(wishDescriptions[entry.wishType])}</p></div>
             <div class="record-item"><h3>소망을 키우는 방식</h3><p>${escapeHtml(methodDescriptions[entry.methodType])}</p></div>
+            <div class="record-item trail"><h3>이 생물을 만나게 된 길</h3>${explorationTrail(entry)}</div>
             ${entry.caption ? '<div class="record-item"><h3>생물의 기록</h3><p lang="en">'+escapeHtml(entry.caption)+'</p></div>' : ''}
           </div>
           <section class="result-actions-panel" aria-labelledby="result-actions-title">
