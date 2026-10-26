@@ -250,10 +250,10 @@ function drawPresence(ctx,w,h,seconds,dt){
  if(p.energy>.01)p.trail.push({x:p.x,y:p.y,t:seconds,e:p.energy});
  while(p.trail.length&&seconds-p.trail[0].t>4.5)p.trail.shift();
  // Light dust is shed only while the hand moves, in proportion to its motion.
- const shed=Math.min(5,p.moved*.025)+(p.energy>.3?.08:0);p.moved=0;
- for(let i=0;i<shed&&dust.length<130;i++){
-  if(rand()>.6)continue;
-  dust.push({x:p.x+(rand()-.5)*80,y:p.y+(rand()-.5)*60,vx:(rand()-.5)*6,vy:-(6+rand()*12),age:0,life:5+rand()*4,r:.8+rand()*1.6,phase:rand()*6.28,spin:2+rand()*3});
+ const shed=Math.min(3,p.moved*.012);p.moved=0;
+ for(let i=0;i<shed&&dust.length<70;i++){
+  if(rand()>.45)continue;
+  dust.push({x:p.x+(rand()-.5)*70,y:p.y+(rand()-.5)*60,vx:(rand()-.5)*5,vy:-(2+rand()*6),age:0,life:4+rand()*4,r:.8+rand()*1.3,phase:rand()*6.28});
  }
  if(p.energy<.004&&!p.trail.length&&!dust.length)return;
  const e=p.energy;
@@ -261,50 +261,31 @@ function drawPresence(ctx,w,h,seconds,dt){
   // Surface light leaning down toward the visitor.
   const sx=w*.475+(p.x-w*.475)*.35;
   const beam=ctx.createLinearGradient(sx,0,p.x,p.y);
-  beam.addColorStop(0,'rgba(110,240,250,'+(.15*e).toFixed(3)+')');beam.addColorStop(.65,'rgba(90,230,240,'+(.07*e).toFixed(3)+')');beam.addColorStop(1,'rgba(90,230,240,0)');
+  beam.addColorStop(0,'rgba(90,230,240,'+(.07*e).toFixed(3)+')');beam.addColorStop(.7,'rgba(90,230,240,'+(.025*e).toFixed(3)+')');beam.addColorStop(1,'rgba(90,230,240,0)');
   ctx.fillStyle=beam;
   // Edges dissolve: the beam is soft-focus light, never a drawn shape.
   if('filter' in ctx)ctx.filter='blur(28px)';
-  const top=90+120*e,bottom=40+60*e;
+  const top=70+90*e,bottom=30+40*e;
   ctx.beginPath();ctx.moveTo(sx-top,-40);ctx.lineTo(sx+top,-40);ctx.lineTo(p.x+bottom,p.y);ctx.lineTo(p.x-bottom,p.y);ctx.closePath();ctx.fill();
   if('filter' in ctx)ctx.filter='none';
  }
- // Wake: a ribbon of light along the path that widens, softens and fades.
- if(p.trail.length>3){
-  ctx.lineCap='round';ctx.lineJoin='round';
-  const passes=[[34,'blur(18px)',.55,'80,220,240'],[11,'blur(6px)',.5,'150,240,250'],[2.4,'blur(1px)',.5,'225,252,255']];
-  // Segments are grouped into six fade levels so each pass is only a few blurred strokes.
-  const BANDS=6;ctx.globalAlpha=1;
-  for(const [width,blur,alpha,rgb] of passes){
-   if('filter' in ctx)ctx.filter=blur;
-   for(let band=0;band<BANDS;band++){
-    const lo=band/BANDS,hi=(band+1)/BANDS,mid=(lo+hi)/2;
-    let any=false,energy=0,count=0;ctx.beginPath();
-    for(let k=2;k<p.trail.length;k+=2){
-     const q0=p.trail[k-2],q=p.trail[k],a=1-(seconds-q.t)/4.5;
-     if(a<=lo||a>hi)continue;
-     ctx.moveTo(q0.x,q0.y);ctx.lineTo(q.x,q.y);any=true;energy+=q.e;count++;
-    }
-    if(!any)continue;
-    ctx.strokeStyle='rgba('+rgb+','+(mid*mid*alpha*energy/count).toFixed(3)+')';
-    ctx.lineWidth=width*(1+(1-mid)*1.6);ctx.stroke();
-   }
-  }
-  if('filter' in ctx)ctx.filter='none';
+ // Wake: the path keeps a little light that fades over a few seconds.
+ for(let k=0;k<p.trail.length;k+=3){
+  const q=p.trail[k],a=1-(seconds-q.t)/4.5;
+  const g=glowSprite(34+50*(1-a));
+  ctx.globalAlpha=a*a*.05*q.e;ctx.drawImage(g,q.x-g.width/2,q.y-g.height/2);
  }
  if(e>.01){
   const breathe=.85+.15*Math.sin(seconds*1.1);
-  const g=glowSprite(220*breathe);ctx.globalAlpha=.34*e;ctx.drawImage(g,p.x-g.width/2,p.y-g.height/2);
-  const c=glowSprite(80);ctx.globalAlpha=.24*e;ctx.drawImage(c,p.x-c.width/2,p.y-c.height/2);
+  const g=glowSprite(150*breathe);ctx.globalAlpha=.11*e;ctx.drawImage(g,p.x-g.width/2,p.y-g.height/2);
+  const c=glowSprite(60);ctx.globalAlpha=.07*e;ctx.drawImage(c,p.x-c.width/2,p.y-c.height/2);
  }
  for(let i=dust.length-1;i>=0;i--){
   const d=dust[i];d.age+=dt;
   if(d.age>d.life){dust.splice(i,1);continue;}
-  // Dust is drawn up toward the surface light, as if returning to it.
-  const toward=(w*.475-d.x)*.05;
-  d.vx+=(toward-d.vx)*Math.min(1,dt*.4);d.x+=d.vx*dt+Math.sin(d.age*.9+d.phase)*.2;d.y+=d.vy*dt;d.vy-=dt*1.5;
-  const a=Math.sin(Math.PI*d.age/d.life),glint=.55+.45*Math.pow(.5+.5*Math.sin(d.age*d.spin+d.phase),5);
-  const g=glowSprite(d.r*6);ctx.globalAlpha=a*.5*glint;ctx.drawImage(g,d.x-g.width/2,d.y-g.height/2);
+  d.vx*=Math.pow(.6,dt);d.x+=d.vx*dt+Math.sin(d.age*.9+d.phase)*.15;d.y+=d.vy*dt;
+  const a=Math.sin(Math.PI*d.age/d.life);
+  const g=glowSprite(d.r*5);ctx.globalAlpha=a*.32;ctx.drawImage(g,d.x-g.width/2,d.y-g.height/2);
  }
  ctx.globalAlpha=1;
 }
