@@ -3,24 +3,28 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-    <meta name="theme-color" content="#02060c">
+    <meta name="theme-color" content="#000000">
     <meta name="description" content="당신의 소망은 살아 있나요? 소망을 깨워 나만의 소망생물을 만나고, 모두의 수족관에 놓아 보내는 전시 인터랙션.">
     <title>소망경매장 — What Lives In Your Wish?</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500&family=Barlow+Condensed:ital,wght@0,200;0,300;1,300&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500&family=Barlow+Condensed:ital,wght@0,200;0,300;1,300&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="wish.css">
   </head>
   <body data-screen="title">
     <div id="stage" aria-hidden="true">
-      <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
-      <div class="grid"></div>
+      <div class="vignette"></div>
     </div>
 
     <button id="menu-btn" class="corner" aria-label="메뉴">+</button>
     <p id="progress" class="progress" aria-live="polite"></p>
     <button id="about-btn" class="about-link">작품 소개</button>
 
+    <div class="marks" aria-hidden="true">
+      <span class="mk tl">WISH AUCTION HOUSE<br>STUDY OF A LIVING WISH</span>
+      <span class="mk bl" id="mk-bl">438 SPECIMENS · 24 WISHES · 7 WAYS</span>
+      <span class="mk br" id="mk-br">N 37.59 · E 127.02</span>
+    </div>
     <main id="view"></main>
     <nav id="bar" class="bar" aria-label="진행"></nav>
 

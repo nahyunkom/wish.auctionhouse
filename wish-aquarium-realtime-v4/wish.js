@@ -418,26 +418,60 @@
       () => dataScreen('모든 기록에서', '소망을 키우는 방식', lollipop(C.WAYS.map((w, i) => ({ label: w.label, value: d.ways[i] })), d.ways.reduce((a, b) => a + b, 0)), 2, 3, () => report(1), menu)
     ];
     pages[Math.max(0, Math.min(2, page))]();
-    if (page === 0) pile($('#pile'), d.total);
+    if (page === 0) pile($('#pile'), d);
   }
-  // Dots fall and settle into a pile: one dot per record (capped for drawing).
-  function pile(cv, total) {
+  // A slowly turning sphere of records: each wish is a hub on the sphere, its records
+  // a rosette of points around it, joined to the core by hairlines.
+  function pile(cv, d) {
     if (!cv) return;
-    const g = cv.getContext('2d'), n = Math.min(total, 360), r = 9, cols = Math.floor(cv.width / (r * 2)), heights = Array(cols).fill(0), drops = [];
-    for (let i = 0; i < n; i++) { let c = Math.floor(cols / 2 + (Math.random() + Math.random() + Math.random() - 1.5) * cols * .45); c = Math.max(0, Math.min(cols - 1, c)); drops.push({ c, y: -20 - i * 9, vy: 0, done: false, hue: i % 3 }); }
-    const cols3 = ['rgba(130,235,225,.9)', 'rgba(180,195,255,.9)', 'rgba(245,185,225,.9)'];
-    const tick = () => {
-      if (!document.body.contains(cv)) return;
-      g.clearRect(0, 0, cv.width, cv.height); let moving = false;
-      for (const d of drops) {
-        const floor = cv.height - r - heights[d.c] * r * 1.75;
-        if (!d.done) { d.vy += .5; d.y += d.vy; if (d.y >= floor) { d.y = floor; d.done = true; heights[d.c]++; } else moving = true; }
-        g.fillStyle = cols3[d.hue]; g.beginPath(); g.arc(d.c * r * 2 + r + (heights[d.c] % 2 ? 0 : 0), d.y, r * .82, 0, Math.PI * 2); g.fill();
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height, R = H * .4;
+    const wishes = (d.wishes || []).filter(x => x.count > 0);
+    const total = Math.max(1, d.total);
+    const cap = Math.min(900, total), hubs = [], pts = [];
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    const list = wishes.length ? wishes : C.wishTypes.map(name => ({ name, count: 0 }));
+    list.forEach((w, i) => {
+      const y = 1 - (i + .5) / list.length * 2, rr = Math.sqrt(1 - y * y), th = i * golden;
+      const hub = { x: Math.cos(th) * rr, y, z: Math.sin(th) * rr, k: i / Math.max(1, list.length - 1), n: w.count };
+      hubs.push(hub);
+      const m = Math.round(w.count / total * cap);
+      for (let j = 0; j < m; j++) {
+        const ring = 1 + Math.floor(Math.sqrt(j)), ang = j * 2.399, spread = .016 * ring;
+        // tangent basis around the hub
+        const ux = -Math.sin(th), uz = Math.cos(th), vx = -y * Math.cos(th), vy = rr, vz = -y * Math.sin(th);
+        const c = Math.cos(ang) * spread, sn = Math.sin(ang) * spread, lift = 1 + .04 + Math.random() * .03;
+        pts.push({ x: (hub.x + ux * c + vx * sn) * lift, y: (hub.y + vy * sn) * lift, z: (hub.z + uz * c + vz * sn) * lift, k: hub.k });
       }
-      if (moving) requestAnimationFrame(tick);
+    });
+    const dust = [];
+    for (let i = 0; i < 2600; i++) { const u = Math.random() * 2 - 1, t = Math.random() * 6.283, q = Math.sqrt(1 - u * u); dust.push({ x: q * Math.cos(t), y: u, z: q * Math.sin(t) }); }
+    const col = k => { const A = [42, 110, 255], B = [120, 215, 255], Cc = [240, 212, 138]; const m = k < .6 ? k / .6 : (k - .6) / .4, x = k < .6 ? A : B, z = k < .6 ? B : Cc; return x.map((v, i) => Math.round(v + (z[i] - v) * m)); };
+    let t0 = performance.now();
+    const proj = (p, rot) => { const c = Math.cos(rot), sn = Math.sin(rot), x = p.x * c + p.z * sn, z = -p.x * sn + p.z * c, ct = Math.cos(.32), st = Math.sin(.32), y = p.y * ct - z * st, z2 = p.y * st + z * ct; const f = 1 / (1.9 - z2 * .5); return [W / 2 + x * R * f * 2, H / 2 + y * R * f * 2, z2]; };
+    const tick = now => {
+      if (!document.body.contains(cv)) return;
+      const rot = (now - t0) / 1000 * .07;
+      g.clearRect(0, 0, W, H); g.globalCompositeOperation = 'lighter';
+      g.fillStyle = 'rgba(80,140,255,.22)';
+      for (const p of dust) { const [x, y, z] = proj(p, rot); if (z < 0) continue; g.fillRect(x, y, 1, 1); }
+      g.lineWidth = .6;
+      for (const h of hubs) {
+        const [x, y, z] = proj(h, rot), [r, gg, b] = col(h.k), a = (z + 1) / 2;
+        g.strokeStyle = 'rgba(' + r + ',' + gg + ',' + b + ',' + (.08 + a * .22).toFixed(2) + ')';
+        g.beginPath(); g.moveTo(W / 2, H / 2); g.lineTo(x, y); g.stroke();
+        g.fillStyle = 'rgba(' + r + ',' + gg + ',' + b + ',' + (.3 + a * .7).toFixed(2) + ')';
+        g.beginPath(); g.arc(x, y, 1.4 + a * 1.8, 0, 6.283); g.fill();
+      }
+      for (const p of pts) {
+        const [x, y, z] = proj(p, rot), [r, gg, b] = col(p.k), a = (z + 1) / 2;
+        g.fillStyle = 'rgba(' + r + ',' + gg + ',' + b + ',' + (.15 + a * .75).toFixed(2) + ')';
+        g.fillRect(x - .9, y - .9, 1.8, 1.8);
+      }
+      g.fillStyle = 'rgba(240,212,138,.9)'; g.beginPath(); g.arc(W / 2, H / 2, 2.2, 0, 6.283); g.fill();
+      g.globalCompositeOperation = 'source-over';
+      requestAnimationFrame(tick);
     };
-    if (!n) { g.fillStyle = 'rgba(200,230,255,.6)'; g.font = '20px sans-serif'; g.textAlign = 'center'; g.fillText('아직 기록된 소망이 없어요.', cv.width / 2, cv.height / 2); return; }
-    tick();
+    requestAnimationFrame(tick);
   }
 
   // ---------- guide (all real creatures) ----------

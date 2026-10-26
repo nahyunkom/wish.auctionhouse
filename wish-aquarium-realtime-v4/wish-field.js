@@ -30,22 +30,26 @@
     return [c0[0] + (c1[0] - c0[0]) * k, c0[1] + (c1[1] - c0[1]) * k, c0[2] + (c1[2] - c0[2]) * k];
   }
 
+  // A stippled organism of nested membranes: points crowd at each membrane's rim
+  // and thin toward its inside, like the particle studies this is modelled on.
+  const SHELLS = [1, .93, .87, .82, .76, .62];
   function build() {
-    const n = Math.round(Math.min(3600, Math.max(1600, (w * h) / 300)));
+    const n = Math.round(Math.min(15000, Math.max(6000, (w * h) / 58)));
     parts = [];
     for (let i = 0; i < n; i++) {
-      const ring = Math.floor(Math.pow(rand(), .8) * 16);
-      const a = rand() * Math.PI * 2;
-      // The right side of the rings frays, like a disc dissolving into the water.
-      const fray = Math.max(0, Math.cos(a - .3)) * rand() * .07;
+      const haze = rand() < .3;                       // inner haze vs. membrane rim
+      const shell = haze ? SHELLS.length - 1 : Math.floor(Math.pow(rand(), 1.4) * (SHELLS.length - 1));
+      const depth = haze ? Math.sqrt(rand()) : Math.pow(rand(), 7) * .16;   // 0 = rim
       parts.push({
         x: w / 2 + (rand() - .5) * w, y: h / 2 + (rand() - .5) * h,
-        ring, a, fray, sh: rand(), jit: (rand() - .5) * .012,
-        r: 200, g: 230, b: 255, size: rand() < .08 ? 2.2 : 1.3, ph: rand() * 6.283,
-        yearRing: rand()
+        shell, depth, haze, a: rand() * Math.PI * 2, sh: rand(), jit: (rand() - .5) * .006,
+        r: 120, g: 180, b: 255, size: rand() < .06 ? 1.7 : 1.15, ph: rand() * 6.283,
+        yearRing: rand(), edge: rand()
       });
     }
   }
+  // Colour by membrane: deep blue outside, cyan, then a warm gold innermost rim.
+  const SHELL_COL = [[38, 110, 255], [50, 150, 255], [70, 190, 255], [90, 215, 240], [235, 205, 110], [150, 175, 150]];
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -80,12 +84,14 @@
           }
           if (!cells.length) { resolve(null); return; }
           const pts = [];
-          for (let n = 0; n < 4000; n++) {
+          for (let n = 0; n < 12000; n++) {
             const r = rand() * total; let lo = 0, hi = weights.length - 1;
             while (lo < hi) { const m = (lo + hi) >> 1; if (weights[m] < r) lo = m + 1; else hi = m; }
             const i = cells[lo], px = (i / 4) % cw, py = Math.floor(i / 4 / cw);
+            const nb = (dx, dy) => { const xx = Math.min(cw - 1, Math.max(0, px + dx)), yy = Math.min(ch - 1, Math.max(0, py + dy)); return d[(yy * cw + xx) * 4 + 3] / 255 * (opaque ? Math.min(1, Math.max(Math.abs(d[(yy * cw + xx) * 4] - bg[0]), Math.abs(d[(yy * cw + xx) * 4 + 1] - bg[1]), Math.abs(d[(yy * cw + xx) * 4 + 2] - bg[2])) / 60) : 1); };
+            const e = Math.min(nb(-2, 0), nb(2, 0), nb(0, -2), nb(0, 2)) < .15;
             const m = Math.max(d[i], d[i + 1], d[i + 2], 1), lift = Math.min(1.6, 210 / m);
-            pts.push({ x: (px + rand()) / cw - .5, y: (py + rand()) / ch - .5,
+            pts.push({ e, x: (px + rand()) / cw - .5, y: (py + rand()) / ch - .5,
               r: Math.min(255, d[i] * lift + 18), g: Math.min(255, d[i + 1] * lift + 22), b: Math.min(255, d[i + 2] * lift + 30) });
           }
           resolve({ id, pts, aspect: cw / ch });
@@ -98,19 +104,31 @@
 
   function size() { return Math.min(w, h) * .34 * (mode.scale || 1); }
 
+  // Organic membrane outline: a slightly flattened, breathing circle with a soft neck on one side.
+  function membrane(a, k) {
+    const wob = .035 * Math.sin(a * 2 + t * .25 + k) + .02 * Math.sin(a * 3 - t * .18) + .012 * Math.sin(a * 5 + t * .4);
+    const neck = -.09 * Math.exp(-Math.pow(Math.atan2(Math.sin(a - Math.PI), Math.cos(a - Math.PI)) / .55, 2)) * (k / (SHELLS.length - 1) * .5 + .5);
+    return 1 + wob + neck;
+  }
   function target(p, i, n) {
     const cx = w / 2, cy = h * (mode.y || .47), R = size();
-    const spin = t * (.04 + (p.ring % 3) * .015) * (p.ring % 2 ? 1 : -1);
-    const ringR = R * (.12 + p.ring / 15 * .88) * (1 + p.fray + p.jit) * (1 + .02 * Math.sin(t * .6 + p.ring));
-    const orb = [cx + Math.cos(p.a + spin) * ringR, cy + Math.sin(p.a + spin) * ringR * .98];
-    if (mode.type === 'orb' || !shape) return { pos: orb, col: orbColor(p.a + spin * .3), a: mode.dim };
+    const k = p.shell, spin = t * .012 * (k % 2 ? 1 : -1);
+    const a = p.a + spin;
+    const rr = R * SHELLS[k] * membrane(a, k) * (1 - p.depth) * (1 + p.jit) * (1 + .012 * Math.sin(t * .5 + k));
+    const ox = R * (.06 - k * .012);   // nested shells sit off-centre, like the reference organism
+    const orb = [cx + ox + Math.cos(a) * rr * 1.04, cy + Math.sin(a) * rr];
+    if (mode.type === 'orb' || !shape) {
+      const c = SHELL_COL[k], rim = p.haze ? .2 : Math.min(1.25, (1 - p.depth / .16) * 1.2 + .15);
+      return { pos: orb, col: c, a: mode.dim * rim };
+    }
     // Points beyond the form become the years rings (or a faint halo when there are none).
     const yearsShare = mode.rings ? Math.min(.45, .08 + mode.rings * .035) : .1;
     if (p.yearRing < yearsShare) {
       const k = mode.rings ? Math.floor(p.yearRing / yearsShare * mode.rings) : 0;
-      const rr = R * (.82 + (mode.rings ? k / Math.max(1, mode.rings) * .55 : .45)) * (1 + p.jit * 2);
-      const ang = p.a + t * (.03 + k * .006) * (k % 2 ? 1 : -1);
-      return { pos: [cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr], col: orbColor(ang), a: mode.rings ? .75 : .35 };
+      const ang = p.a + t * (.01 + k * .003) * (k % 2 ? 1 : -1);
+      const rr = R * (.84 + (mode.rings ? k / Math.max(1, mode.rings) * .5 : .42)) * membrane(ang, k) * (1 - p.depth * .3);
+      const c = SHELL_COL[Math.min(3, k % 4)];
+      return { pos: [cx + Math.cos(ang) * rr * 1.04, cy + Math.sin(ang) * rr], col: c, a: (mode.rings ? .8 : .3) * (p.haze ? .3 : 1) };
     }
     const sp = shape.pts[i % shape.pts.length];
     const fw = shape.aspect >= 1 ? R * 1.5 : R * 1.5 * shape.aspect, fh = shape.aspect >= 1 ? R * 1.5 / shape.aspect : R * 1.5;
@@ -119,7 +137,7 @@
     let x = sp.x * fw * breathe, y = sp.y * fh * breathe;
     const c = Math.cos(sway), s = Math.sin(sway);
     const fx = Math.sin(sp.y * 9 + t * .8 + p.ph) * 2.2, fy = Math.cos(sp.x * 9 + t * .7 + p.ph) * 1.6;
-    return { pos: [cx + x * c - y * s + fx, cy + x * s + y * c + fy + Math.sin(t * .45) * 6], col: [sp.r, sp.g, sp.b], a: .8 };
+    return { pos: [cx + x * c - y * s + fx, cy + x * s + y * c + fy + Math.sin(t * .45) * 6], col: [sp.r, sp.g, sp.b], a: sp.e ? .95 : .5 };
   }
 
   function frame(now) {
@@ -131,16 +149,26 @@
     ctx.clearRect(0, 0, w, h);
     ctx.globalCompositeOperation = 'lighter';
     flare *= Math.pow(.25, dt);
-    const n = parts.length;
+    const n = parts.length, buckets = new Map();
     for (let i = 0; i < n; i++) {
       const p = parts[i], tg = target(p, i, n);
       p.x += (tg.pos[0] - p.x) * k * (.6 + p.sh * .8);
       p.y += (tg.pos[1] - p.y) * k * (.6 + p.sh * .8);
       p.r += (tg.col[0] - p.r) * k; p.g += (tg.col[1] - p.g) * k; p.b += (tg.col[2] - p.b) * k;
-      const tw = .7 + .3 * Math.sin(t * 1.4 + p.ph * 3);
-      const a = Math.min(1, tg.a * tw * (.55 + p.sh * .45) + flare * .4);
-      ctx.fillStyle = 'rgba(' + (p.r | 0) + ',' + (p.g | 0) + ',' + (p.b | 0) + ',' + a.toFixed(2) + ')';
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      const tw = .75 + .25 * Math.sin(t * 1.1 + p.ph * 3);
+      const a = Math.min(1, tg.a * tw * (.5 + p.sh * .5) + flare * .35);
+      if (a < .03) continue;
+      // quantise colour and alpha so points draw in a few hundred batches
+      const key = ((p.r >> 4) << 16) | ((p.g >> 4) << 10) | ((p.b >> 4) << 4) | Math.min(15, (a * 16) | 0);
+      let list = buckets.get(key); if (!list) buckets.set(key, list = []);
+      list.push(p.x, p.y, p.size);
+    }
+    for (const [key, list] of buckets) {
+      const r = ((key >> 16) & 15) * 16 + 8, g = ((key >> 10) & 63 & 15) * 16 + 8, b = ((key >> 4) & 15) * 16 + 8, a = ((key & 15) + .5) / 16;
+      ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + a.toFixed(2) + ')';
+      ctx.beginPath();
+      for (let j = 0; j < list.length; j += 3) ctx.rect(list[j], list[j + 1], list[j + 2], list[j + 2]);
+      ctx.fill();
     }
     ctx.globalCompositeOperation = 'source-over';
     if (!paused && !reduce.matches) raf = requestAnimationFrame(frame);

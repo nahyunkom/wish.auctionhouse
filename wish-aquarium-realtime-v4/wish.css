@@ -218,3 +218,67 @@ body[data-screen=guide] .screen { width: auto; }
   .card-body .facts-title { margin-top: 0; }
   .card-tank { max-height: calc(100vh - 300px); aspect-ratio: 1 / 1; }
 }
+
+
+/* ==== Particle-study refinement: pure black, hairlines, stipple ==== */
+:root {
+  --ink: #e9eef2; --ink-2: #9aa7b0; --ink-3: #5d6870;
+  --glass: transparent; --glass-2: rgba(255, 255, 255, .04);
+  --line: rgba(255, 255, 255, .16); --hi: #8fd8ff; --warm: #f0d48a;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+html, body { background: #000; }
+body { font-weight: 200; letter-spacing: .01em; }
+.vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 46%, transparent 40%, rgba(0,0,0,.65) 100%); pointer-events: none; z-index: 2; }
+#stage canvas { z-index: 1; }
+.marks { position: fixed; inset: 0; pointer-events: none; z-index: 3; font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--ink-3); line-height: 1.7; }
+.mk { position: absolute; }
+.mk.tl { left: 84px; top: 26px; }
+.mk.bl { left: max(20px, env(safe-area-inset-left)); bottom: 26px; }
+.mk.br { right: max(20px, env(safe-area-inset-right)); bottom: 26px; text-align: right; }
+@media (max-width: 760px) { .mk.bl, .mk.br { display: none; } }
+.progress, .kicker, .data .kicker, .about-link, .count, .legend, .facts-title span, .title-sub { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.title-sub { text-transform: none; letter-spacing: .1em; }
+.ask { font-weight: 200; letter-spacing: -.01em; }
+.title-en { font-weight: 200; letter-spacing: .02em; }
+
+/* hairline controls, no glass */
+.corner, .bar-back, .bar-next, .chip, .tile, .round, .glass-input, .bubble, .wish-card {
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+}
+.corner { background: transparent; border-color: var(--line); width: 44px; height: 44px; font-weight: 200; }
+.bar-back { background: transparent; border-color: var(--line); border-radius: 0; width: 52px; }
+.bar-next { background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; padding: 0 4px; }
+.bar-next:hover:not(:disabled) { background: transparent; border-top-color: rgba(255,255,255,.6); }
+.bar-next:not(:disabled)::after { content: ''; }
+.chip { background: rgba(0,0,0,.35); border-radius: 0; border-color: var(--line); font-weight: 300; font-size: 14px; }
+.chip:hover { background: rgba(255,255,255,.04); }
+.chip.on { background: rgba(143,216,255,.06); border-color: var(--hi); box-shadow: inset 0 0 0 1px rgba(143,216,255,.25), 0 0 26px rgba(70,150,255,.18); color: #fff; }
+.chip.on.first { border-color: var(--warm); box-shadow: inset 0 0 0 1px rgba(240,212,138,.25), 0 0 26px rgba(240,190,90,.16); }
+.chip.on.first::after { color: var(--warm); font-family: var(--mono); font-size: 10px; letter-spacing: .1em; }
+.chip.way { border-radius: 0; }
+.chip.way b { font-family: var(--mono); font-weight: 400; font-size: 12px; letter-spacing: .1em; }
+.tile { background: rgba(0,0,0,.4); border-radius: 0; border-color: var(--line); }
+.tile:hover:not(:disabled) { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.4); }
+.round { background: transparent; border-radius: 50%; }
+.glass-input { background: rgba(0,0,0,.45); border-radius: 0; border: 0; border-bottom: 1px solid var(--line); font-weight: 300; }
+.glass-input:focus { border-bottom-color: var(--hi); }
+.meter { height: 1px; background: rgba(255,255,255,.12); border-radius: 0; }
+.meter i { background: linear-gradient(90deg, #2a6cff, #8fd8ff, #f0d48a); }
+.wish-card { background: rgba(0,0,0,.72); border-radius: 0; border-color: var(--line); }
+.card-tank { border-radius: 0; }
+.facts-title { border-bottom-width: 1px; font-weight: 300; }
+.bubble { border-radius: 0; background: rgba(0,0,0,.4); }
+.figure { mix-blend-mode: screen; }
+.figure.show { opacity: .55; }
+.mk.bl { left: max(18px, env(safe-area-inset-left)); bottom: 50%; transform: translateY(50%) rotate(180deg); writing-mode: vertical-rl; }
+.mk.br { right: max(18px, env(safe-area-inset-right)); bottom: 50%; transform: translateY(50%); writing-mode: vertical-rl; }
+.dial path { fill: rgba(0,0,0,.5); stroke: rgba(255,255,255,.14); }
+.dial .on path { fill: rgba(70,150,255,.16); stroke: rgba(143,216,255,.8); }
+.dial text { font-family: var(--mono); font-size: 13px; }
+.radial circle { fill: rgba(90,160,255,.7); }
+.radial circle.mine { fill: var(--warm); }
+.lstart, .lend { background: var(--hi); width: 7px; height: 7px; }
+.lrow.mine .lstart, .lrow.mine .lend { background: var(--warm); box-shadow: 0 0 12px var(--warm); }
+.lrow.mine .lline { border-top-color: var(--warm); }
+.lrow.mine .llab { color: var(--warm); }
