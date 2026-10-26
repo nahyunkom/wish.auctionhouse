@@ -86,8 +86,9 @@ function draw() {
 // Creatures whose wish is to belong (소속 군체형) swim as a small school: several
 // small copies of the same original PNG moving together, loosely, like fish.
 const SCHOOL_WISH = '소속 군체형';
-// Birth of a released creature, in seconds: gather → outline → wake.
-const BIRTH_WAKE = 3.6, BIRTH_TOTAL = 6;
+// Birth of a released creature, in seconds: it surfaces through stirred water and
+// light, and only starts to swim, very slowly, at BIRTH_WAKE.
+const BIRTH_WAKE = 7, BIRTH_TOTAL = 11;
 const smooth01 = v => { const x = Math.min(1, Math.max(0, v)); return x * x * (3 - 2 * x); };
 const isSchooling = data => data.school === true || data.wishType === SCHOOL_WISH;
 
@@ -153,8 +154,8 @@ class WishSwimmer {
     const born = this.birthProgress();
     if (born < 1) {
       // Held in the light while forming; afterwards it eases into swimming.
-      const free = Math.max(0, Math.min(1, (born * BIRTH_TOTAL - BIRTH_WAKE) / 2.5));
-      if (free <= 0) { this.y = this.baseY + Math.sin(t * .9 + this.phase) * 2; this.vy = 0; if (this.school) for (const m of this.school) { m.x = this.x; m.y = this.y; } return; }
+      const free = Math.max(0, Math.min(1, (born * BIRTH_TOTAL - BIRTH_WAKE) / 4));
+      if (free <= 0) { this.y = this.baseY + Math.sin(t * .5 + this.phase) * 3; this.vy = 0; if (this.school) for (const m of this.school) { m.x = this.x; m.y = this.y; } return; }
       seconds *= free;
     }
     const before = this.x, beforeY = this.y;
@@ -241,13 +242,13 @@ class WishSwimmer {
       const bt = this.birthProgress() * BIRTH_TOTAL;
       if (aquariumMotionReduced) arrivalAlpha *= Math.min(1, bt / 1.4);
       else if (bt < BIRTH_TOTAL) {
-        const k = smooth01((bt - 2.2) / (BIRTH_WAKE - 2.2));
-        const flash = Math.exp(-Math.pow((bt - BIRTH_WAKE) / .3, 2));
-        arrivalAlpha *= k;
-        look.blur += (1 - k) * 7;
-        look.light += (1 - k) * 2 + flash * 1.4;
-        look.fog *= k;
-        look.wobble += (1 - k) * 3;
+        // Seen first as a faint, rippling shape through the water, then slowly clearer.
+        const k = smooth01((bt - 1.2) / 6.3);
+        arrivalAlpha *= Math.min(1, bt / 2) * .15 + .85 * k * k;
+        look.blur += (1 - k) * 9;
+        look.wobble += (1 - k) * 4;
+        look.light += (1 - k) * 1.1;
+        look.fog *= .35 + .65 * k;
       }
     }
     // Near a visitor's touch the water in front of a creature stirs: its outline
