@@ -115,6 +115,9 @@ class WishSwimmer {
     this.isNew = isNew;
     this.school = isSchooling(data) ? this.makeSchool() : null;
     this.vy = 0;
+    // How stirred this creature is by a visitor's light (rises fast, settles slowly).
+    this.stir = 0;
+    this.shy = 0;
   }
 
   makeSchool() {
@@ -142,18 +145,27 @@ class WishSwimmer {
     if(aquariumMotionReduced)return;
     const t = (now - this.bornAt) / 1000;
     const before = this.x, beforeY = this.y;
-    this.x += this.speed * (1 + .3 * Math.sin(t * .07 + this.phase)) * seconds;
-    this.y = this.baseY + Math.sin(t * .45 + this.phase) * this.bobAmount
+    // Touched by the stirred light or a passing light ring, a creature brightens,
+    // quickens a little and eases away from the hand, then calms.
+    const touch = Math.min(1, (AquariumEnvironment.presenceLight ? AquariumEnvironment.presenceLight(this.x, this.y) : 0)
+      + (AquariumEnvironment.ringLight ? AquariumEnvironment.ringLight(this.x, this.y) * .45 : 0));
+    this.stir += (touch - this.stir) * Math.min(1, seconds * (touch > this.stir ? 2.2 : .45));
+    const hand = AquariumEnvironment.presenceState ? AquariumEnvironment.presenceState() : null;
+    const away = hand && hand.energy > .02 ? Math.sign(this.baseY + this.shy - hand.y || 1) : 0;
+    this.shy += (away * this.stir * sizeBasis() * .07 - this.shy) * Math.min(1, seconds * .8);
+    this.x += this.speed * (1 + .3 * Math.sin(t * .07 + this.phase) + this.stir * 1.1) * seconds;
+    this.y = this.baseY + this.shy + Math.sin(t * .45 + this.phase) * this.bobAmount
       + Math.sin(t * .06 + this.phase * 1.7) * this.wander * Math.min(1.4, sizeBasis() / 1080);
     this.vy = seconds ? (this.y - beforeY) / seconds : 0;
     const margin = this.baseHeight * (this.school ? 4 : 1.2);
     if (this.direction > 0 && this.x > width + margin) this.x = -margin;
     if (this.direction < 0 && this.x < -margin) this.x = width + margin;
     if (this.school) {
-      const jump = this.x - before - this.speed * seconds * (1 + .3 * Math.sin(t * .07 + this.phase));
+      const jump = this.x - before - this.speed * seconds * (1 + .3 * Math.sin(t * .07 + this.phase) + this.stir * 1.1);
       const unit = this.memberHeight();
       // The school breathes: it tightens and loosens slowly.
-      const spread = .8 + .3 * Math.sin(t * .13 + this.phase);
+      // A stirred school scatters outward, then gathers itself again.
+      const spread = (.8 + .3 * Math.sin(t * .13 + this.phase)) * (1 + this.stir * 1.3);
       for (const m of this.school) {
         if (Math.abs(jump) > 1) m.x += jump;
         const tx = this.x + (m.ox * spread + Math.sin(t * .5 + m.phase) * .35) * unit;
@@ -179,8 +191,15 @@ class WishSwimmer {
     const look = underwaterLook(this.depth);
     // Near a visitor's touch the water in front of a creature stirs: its outline
     // ripples more and the moving light on it brightens a little.
-    const lit = AquariumEnvironment.presenceLight ? AquariumEnvironment.presenceLight(this.x, this.y) : 0;
-    if (lit > .01) { look.wobble += lit * 2.4; look.light += lit * .9; look.fog *= 1 - lit * .35; }
+    // Stirred creatures glow from within in a slow pulse and come out of the haze.
+    const st = this.stir;
+    if (st > .01) {
+      const pulse = .75 + .25 * Math.sin(age * .004 + this.phase);
+      look.wobble += st * 2.2;
+      look.light += st * 1.6 * pulse;
+      look.fog *= 1 - st * .6;
+      look.blur *= 1 - st * .45;
+    }
     // Gentle tilt with the climb or descent.
     const slope = aquariumMotionReduced ? 0 : Math.max(-.18, Math.min(.18, this.vy / Math.max(4, Math.abs(this.speed)) * .25));
     if (this.school) {

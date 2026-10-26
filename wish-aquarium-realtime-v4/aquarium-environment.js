@@ -38,6 +38,7 @@ uniform vec2 resolution;
 uniform vec2 pointer;
 uniform float time;
 uniform vec3 presence; // x, y in uv (y up), strength
+uniform vec4 drops[6];  // ripple rings: x, y in uv, start time, strength
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){
  vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -113,7 +114,21 @@ void main(){
   float c1=surface(sp*3.0+vec2(time*.14,-time*.10)+d*1.1);
   float c2=surface(sp*4.6-vec2(time*.12,time*.08)-d*.8);
   float weave=pow(clamp(1.-abs(c1-c2)*2.3,0.,1.),2.);
-  color+=(vec3(.035,.27,.29)*weave*rings+vec3(.012,.09,.10))*fall*presence.z;
+  float core=pow(clamp(1.-abs(c1-c2)*3.4,0.,1.),2.5);
+  color+=(vec3(.06,.46,.48)*weave*rings+vec3(.12,.5,.5)*core*rings*.3+vec3(.02,.14,.16))*fall*presence.z;
+ }
+ // Each touch sends a ring of light outward through the water, carried by the
+ // caustics, widening and fading over about four seconds.
+ for(int i=0;i<6;i++){
+  vec4 dr=drops[i];
+  float age=time-dr.z;
+  if(dr.w<=0.||age<0.||age>4.2)continue;
+  vec2 d=(q-dr.xy)*vec2(aspect,1.);
+  float r=length(d),R=.03+age*.11;
+  float band=exp(-pow((r-R)/(.018+age*.012),2.));
+  float fade=pow(1.-age/4.2,1.6)*dr.w;
+  float lace=.55+.45*surface(q*vec2(aspect,1.)*7.+vec2(time*.2,-time*.15));
+  color+=vec3(.07,.42,.45)*band*lace*fade+vec3(.02,.10,.11)*exp(-r*r/(2.*R*R+.002))*fade*.5;
  }
  color*=vec3(1.0,1.19,1.065);
  color+=vec3(.004,.018,.018)*(1.-q.y);
@@ -151,7 +166,7 @@ function build(){
  const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
  const location=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,2,gl.FLOAT,false,0,0);
- uniforms={};for(const name of ['resolution','time','pointer','presence'])uniforms[name]=gl.getUniformLocation(program,name);
+ uniforms={};for(const name of ['resolution','time','pointer','presence','drops'])uniforms[name]=gl.getUniformLocation(program,name);
 }
 function fallback(ctx,w,h,t){
  const fill=ctx.createLinearGradient(0,0,w,h);fill.addColorStop(0,'#087cd0');fill.addColorStop(.52,'#096ab6');fill.addColorStop(1,'#095aa3');
@@ -174,6 +189,8 @@ function background(ctx,w,h,seconds){
   if(canvas.width!==rw||canvas.height!==rh){canvas.width=rw;canvas.height=rh;gl.viewport(0,0,rw,rh);}
   gl.useProgram(program);gl.uniform2f(uniforms.resolution,rw,rh);gl.uniform1f(uniforms.time,t);gl.uniform2f(uniforms.pointer,pointer.x,pointer.y);
   gl.uniform3f(uniforms.presence,presence.x/Math.max(1,w),1-presence.y/Math.max(1,h),motion.matches?0:presence.energy);
+  for(let i=0;i<6;i++){const d=drops[i];dropData[i*4]=d?d.x/Math.max(1,w):0;dropData[i*4+1]=d?1-d.y/Math.max(1,h):0;dropData[i*4+2]=d?d.t:0;dropData[i*4+3]=d&&!motion.matches?d.s:0;}
+  if(uniforms.drops)gl.uniform4fv(uniforms.drops,dropData);
   gl.drawArrays(gl.TRIANGLES,0,6);
   if(seconds>lastTime&&lastTime){const dt=seconds-lastTime;if(++frames>90&&dt>.045&&quality>.38){quality=Math.max(.38,quality-.05);frames=0;}}
   lastTime=seconds;
@@ -210,13 +227,25 @@ let front=null,frontCtx=null,frontScale=1,lastFront=0,nextBreath=0;
 const bubbles=[],motes=[],glows=new Map(),dust=[];
 // A visitor's presence (touch, pointer, later a depth camera) gathers light.
 // Everything follows it slowly; nothing jumps to the hand.
-const presence={x:0,y:0,tx:0,ty:0,energy:0,target:0,last:-9,seen:false,trail:[],moved:0};
-function feel(x,y,strength){
+const presence={x:0,y:0,tx:0,ty:0,energy:0,target:0,last:-9,seen:false,trail:[],moved:0,sinceDrop:0};
+// Light rings sent out by touches (newest replaces oldest).
+const drops=[],dropData=new Float32Array(24);
+let sceneH=1;
+function drop(x,y,s){drops.push({x,y,t:lastFront,s});if(drops.length>6)drops.shift();}
+// feel(x, y, strength 0–1, pressed): presence input in aquarium CSS pixels.
+function feel(x,y,strength,pressed){
  if(!Number.isFinite(x)||!Number.isFinite(y))return;
  if(!presence.seen){presence.x=x;presence.y=y;presence.seen=true;}
- presence.moved+=Math.hypot(x-presence.tx,y-presence.ty);
- presence.tx=x;presence.ty=y;presence.target=Math.min(1,Math.max(0,strength===undefined?1:strength));presence.last=lastFront;
+ const step=Math.hypot(x-presence.tx,y-presence.ty);
+ presence.moved+=step;presence.sinceDrop+=step;
+ const s=Math.min(1,Math.max(0,strength===undefined?1:strength));
+ // A ring of light when the hand first meets the water, and now and then as it travels.
+ if(pressed||presence.energy<.12&&s>.3||presence.sinceDrop>220){drop(x,y,pressed?1:.7*s);presence.sinceDrop=0;}
+ presence.tx=x;presence.ty=y;presence.target=s;presence.last=lastFront;
 }
+// Light plankton: faint glints spread through the water that drift toward a
+// visitor's hand, slowly circle it while it stays, and return when it leaves.
+const plankton=[];
 let seedValue=7331;
 function rand(){seedValue=(seedValue*1664525+1013904223)>>>0;return seedValue/4294967296;}
 function ensureFront(w,h){
@@ -225,9 +254,10 @@ function ensureFront(w,h){
   Object.assign(front.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});
   document.querySelector('#canvas-host').appendChild(front);frontCtx=front.getContext('2d');
   for(let i=0;i<18;i++)motes.push({x:rand(),y:rand(),z:rand(),phase:rand()*6.28});
+  for(let i=0;i<90;i++)plankton.push({hx:rand(),hy:.12+rand()*.86,x:0,y:0,pull:0,orbit:30+rand()*130,ang:rand()*6.28,spin:(.15+rand()*.35)*(rand()<.5?-1:1),phase:rand()*6.28,r:.8+rand()*1.4,placed:false});
   const stage=document.querySelector('#aquarium-stage');
   if(stage){
-   const onPointer=e=>{const at=view.toStage(e.clientX,e.clientY);feel(at.x,at.y,e.pointerType==='mouse'&&!e.buttons?.55:1);};
+   const onPointer=e=>{const at=view.toStage(e.clientX,e.clientY);feel(at.x,at.y,e.pointerType==='mouse'&&!e.buttons?.6:1,e.type==='pointerdown');};
    stage.addEventListener('pointerdown',onPointer,{passive:true});
    stage.addEventListener('pointermove',onPointer,{passive:true});
   }
@@ -288,7 +318,7 @@ function breath(w,h){
 }
 function foreground(w,h,seconds){
  if(!document.querySelector('#canvas-host'))return;
- ensureFront(w,h);
+ ensureFront(w,h);sceneH=h;
  const ctx=frontCtx;ctx.setTransform(frontScale,0,0,frontScale,0,0);ctx.clearRect(0,0,w,h);
  if(motion.matches){lastFront=seconds;return;}
  const dt=lastFront?Math.min(.1,Math.max(0,seconds-lastFront)):0;lastFront=seconds;
@@ -343,6 +373,25 @@ function foreground(w,h,seconds){
    ctx.globalAlpha=1;
   }
  }
+ // Light plankton gathering to the visitor's hand.
+ const P=presence;
+ for(const k of plankton){
+  if(!k.placed){k.x=k.hx*w;k.y=k.hy*h;k.placed=true;}
+  const homeX=k.hx*w+Math.sin(seconds*.07+k.phase)*24,homeY=k.hy*h+Math.cos(seconds*.05+k.phase)*18;
+  const reach=P.energy*Math.exp(-(Math.pow(homeX-P.x,2)+Math.pow(homeY-P.y,2))/(2*420*420));
+  k.pull+=(reach-k.pull)*Math.min(1,dt*(reach>k.pull?.7:.3));
+  k.ang+=k.spin*dt*(1+k.pull);
+  const breathe=1+.18*Math.sin(seconds*.8+k.phase);
+  const ox=P.x+Math.cos(k.ang)*k.orbit*breathe,oy=P.y+Math.sin(k.ang)*k.orbit*.7*breathe;
+  const tx=homeX+(ox-homeX)*k.pull,ty=homeY+(oy-homeY)*k.pull;
+  const ease=Math.min(1,dt*1.4);k.x+=(tx-k.x)*ease;k.y+=(ty-k.y)*ease;
+  const glint=.6+.4*Math.pow(.5+.5*Math.sin(seconds*2.2+k.phase*3),4);
+  const a=(.07+.07*lightAt(k.x,k.y,w,h,seconds)+k.pull*.75)*glint;
+  if(a<.02)continue;
+  const g=glowSprite(k.r*(5+k.pull*4));
+  ctx.globalAlpha=Math.min(1,a);ctx.drawImage(g,k.x-g.width/2,k.y-g.height/2);
+ }
+ ctx.globalAlpha=1;
  // Suspended particles near the lens, lit only where light passes.
  for(const m of motes){
   m.y-=dt*(.003+m.z*.004);m.x+=Math.sin(seconds*.15+m.phase)*dt*.002;
@@ -362,7 +411,18 @@ function presenceLight(x,y){
  const d2=Math.pow(x-presence.x,2)+Math.pow(y-presence.y,2);
  return Math.exp(-d2/(2*240*240))*presence.energy;
 }
-root.AquariumEnvironment={background,texture,foreground,burst,feel,presenceLight,composite:()=> 'source-over'};
+// How strongly any expanding light ring is passing a point right now (0 – ~1).
+function ringLight(x,y){
+ let v=0;
+ for(const d of drops){
+  const age=lastFront-d.t;if(age<0||age>4.2)continue;
+  const R=sceneH*(.03+age*.11),r=Math.hypot(x-d.x,y-d.y);
+  v+=Math.exp(-Math.pow((r-R)/90,2))*(1-age/4.2)*d.s;
+ }
+ return Math.min(1,v);
+}
+function presenceState(){return {x:presence.x,y:presence.y,energy:presence.energy};}
+root.AquariumEnvironment={background,texture,foreground,burst,feel,presenceLight,ringLight,presenceState,composite:()=> 'source-over'};
 })(window);
 
 // Original catalog scenery: these are not visitor releases and never enter server statistics.
