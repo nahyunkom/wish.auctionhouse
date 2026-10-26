@@ -86,6 +86,9 @@ function draw() {
 // Creatures whose wish is to belong (소속 군체형) swim as a small school: several
 // small copies of the same original PNG moving together, loosely, like fish.
 const SCHOOL_WISH = '소속 군체형';
+// Birth of a released creature, in seconds: gather → outline → wake.
+const BIRTH_WAKE = 3.6, BIRTH_TOTAL = 6;
+const smooth01 = v => { const x = Math.min(1, Math.max(0, v)); return x * x * (3 - 2 * x); };
 const isSchooling = data => data.school === true || data.wishType === SCHOOL_WISH;
 
 class WishSwimmer {
@@ -102,8 +105,9 @@ class WishSwimmer {
     this.scale = .9+seededNoise(this.seed,1)*.2;
     this.waterAlpha = .30 + (1-this.depth)*.54;
     this.baseHeight = sizeBasis()*(.025+.18*Math.pow(1-this.depth,2))*this.scale;
-    this.x = isNew ? width*.5 : width*(data.exhibitionResident?data.screenX:seededNoise(this.seed,2));
-    this.y = isNew ? height*.53 : height*(data.exhibitionResident?residentY(data,this.seed):.32+seededNoise(this.seed,3)*.60);
+    // A released wish is born near the light column, a little off-centre each time.
+    this.x = isNew ? width*(.4+seededNoise(this.seed,2)*.2) : width*(data.exhibitionResident?data.screenX:seededNoise(this.seed,2));
+    this.y = isNew ? height*(.4+seededNoise(this.seed,3)*.2) : height*(data.exhibitionResident?residentY(data,this.seed):.32+seededNoise(this.seed,3)*.60);
     this.baseY = this.y;
     this.speed = this.direction*(3+(1-this.depth)*8+seededNoise(this.seed,4)*3);
     this.bobAmount = 3 + seededNoise(this.seed, 6) * 3;
@@ -113,6 +117,8 @@ class WishSwimmer {
     this.bornAt = millis();
     this.lastUpdateAt = this.bornAt;
     this.isNew = isNew;
+    // Birth timeline (seconds since the PNG was ready); null until then.
+    this.birthAt = null;
     this.school = isSchooling(data) ? this.makeSchool() : null;
     this.vy = 0;
     // How stirred this creature is by a visitor's light (rises fast, settles slowly).
@@ -140,10 +146,17 @@ class WishSwimmer {
 
   update() {
     const now = millis();
-    const seconds = Math.min(.1, Math.max(0, now - this.lastUpdateAt) / 1000);
+    let seconds = Math.min(.1, Math.max(0, now - this.lastUpdateAt) / 1000);
     this.lastUpdateAt = now;
     if(aquariumMotionReduced)return;
     const t = (now - this.bornAt) / 1000;
+    const born = this.birthProgress();
+    if (born < 1) {
+      // Held in the light while forming; afterwards it eases into swimming.
+      const free = Math.max(0, Math.min(1, (born * BIRTH_TOTAL - BIRTH_WAKE) / 2.5));
+      if (free <= 0) { this.y = this.baseY + Math.sin(t * .9 + this.phase) * 2; this.vy = 0; if (this.school) for (const m of this.school) { m.x = this.x; m.y = this.y; } return; }
+      seconds *= free;
+    }
     const before = this.x, beforeY = this.y;
     // Touched by the stirred light or a passing light ring, a creature brightens,
     // quickens a little and eases away from the hand, then calms.
@@ -181,14 +194,62 @@ class WishSwimmer {
 
   memberHeight() { return this.baseHeight * .42; }
 
+  // 0 → 1 over the whole birth; 1 for residents and once born.
+  birthProgress() {
+    if (!this.isNew) return 1;
+    if (this.birthAt === null) return 0;
+    return Math.min(1, (millis() - this.birthAt) / 1000 / BIRTH_TOTAL);
+  }
+
+  // Sample the creature's real outline (and some of its body) from the display copy
+  // of its original PNG, as offsets in screen pixels around its centre.
+  birthPoints(drawWidth, drawHeight) {
+    const img = this.image, b = img.silhouette.bounds, px = img.pixels, w = img.width;
+    if (!px) return [];
+    const edge = [], body = [];
+    const step = Math.max(1, Math.round(Math.sqrt(b.width * b.height / 9000)));
+    for (let y = b.y + 1; y < b.y + b.height - 1; y += step) {
+      for (let x = b.x + 1; x < b.x + b.width - 1; x += step) {
+        const a = px[(y * w + x) * 4 + 3];
+        if (a < 140) continue;
+        const near = Math.min(px[(y * w + x - step) * 4 + 3] || 0, px[(y * w + x + step) * 4 + 3] || 0, px[((y - step) * w + x) * 4 + 3] || 0, px[((y + step) * w + x) * 4 + 3] || 0);
+        (near < 60 ? edge : body).push([x, y]);
+      }
+    }
+    const pick = (list, n) => { const out = []; for (let i = 0; i < n && list.length; i++) out.push(list[Math.floor(seededNoise(this.seed, 300 + i * 7 + out.length) * list.length)]); return out; };
+    const chosen = [...pick(edge, 110), ...pick(body, 60)];
+    return chosen.map(([x, y]) => ({ dx: ((x - b.x) / b.width - .5) * drawWidth, dy: ((y - b.y) / b.height - .5) * drawHeight }));
+  }
+
   draw() {
     if (!this.image?.width || this.image.silhouette.empty) return;
     const age = Math.max(0, millis() - this.bornAt);
-    const arrivalAlpha = (this.isNew ? Math.min(1, age / 1400) : 1) * this.waterAlpha;
     const bounds=this.image.silhouette.bounds;
     const ratio=bounds.width/bounds.height;
     const texture = AquariumEnvironment.texture(this.image);
     const look = underwaterLook(this.depth);
+    // Birth: light gathers into this creature's outline, then it wakes from the light.
+    if (this.isNew && this.birthAt === null) {
+      this.birthAt = millis();
+      if (!aquariumMotionReduced && AquariumEnvironment.birth) {
+        const h = Math.min(this.baseHeight, viewW() * (portraitView() ? .5 : .30) / ratio);
+        AquariumEnvironment.birth(this.birthPoints(h * ratio, h), this.x, this.y);
+      }
+    }
+    let arrivalAlpha = this.waterAlpha;
+    if (this.isNew) {
+      const bt = this.birthProgress() * BIRTH_TOTAL;
+      if (aquariumMotionReduced) arrivalAlpha *= Math.min(1, bt / 1.4);
+      else if (bt < BIRTH_TOTAL) {
+        const k = smooth01((bt - 2.2) / (BIRTH_WAKE - 2.2));
+        const flash = Math.exp(-Math.pow((bt - BIRTH_WAKE) / .3, 2));
+        arrivalAlpha *= k;
+        look.blur += (1 - k) * 7;
+        look.light += (1 - k) * 2 + flash * 1.4;
+        look.fog *= k;
+        look.wobble += (1 - k) * 3;
+      }
+    }
     // Near a visitor's touch the water in front of a creature stirs: its outline
     // ripples more and the moving light on it brightens a little.
     // Stirred creatures glow from within in a slow pulse and come out of the haze.
@@ -261,8 +322,7 @@ function addCreature(data, isNew = true) {
   if (swimmers.length > 120) swimmers.splice(0, swimmers.length - 120);
   updateCount();
   if (isNew) {
-    const swimmer = swimmers[swimmers.length - 1];
-    if (AquariumEnvironment.burst) AquariumEnvironment.burst(swimmer.x, swimmer.y);
+    // The birth sequence (light gathering into the creature) starts once its PNG is ready.
     showArrival(data.name || '새로운 소망생물');
   }
 }

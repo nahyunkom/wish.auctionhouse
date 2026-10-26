@@ -235,7 +235,7 @@ function texture(image){
 // shimmer as they turn, and leave a faint luminous wake that dissolves.
 // Additive light on its own canvas above the creatures. No images.
 let front=null,frontCtx=null,frontScale=1,lastFront=0,nextBreath=0;
-const bubbles=[],motes=[],glows=new Map(),dust=[],curtain=[];
+const bubbles=[],motes=[],glows=new Map(),dust=[],curtain=[],births=[];
 // A visitor's presence (touch, pointer, later a depth camera) gathers light.
 // Everything follows it slowly; nothing jumps to the hand.
 const presence={x:0,y:0,tx:0,ty:0,energy:0,target:0,last:-9,seen:false,trail:[],moved:0,sinceDrop:0};
@@ -333,6 +333,49 @@ function drawCurtain(ctx,w,h,seconds,dt){
  }
  ctx.globalAlpha=1;
 }
+// Birth of a released creature: light particles spiral in from the surrounding
+// water, settle on the creature's real outline, flare as it wakes (a ring of light
+// and bubbles), then drift upward as glitter. Timings match shared-aquarium.js.
+const B_GATHER=2.4,B_WAKE=3.6,B_END=6;
+function birth(points,x,y){
+ if(motion.matches||!Array.isArray(points)||!Number.isFinite(x)||!Number.isFinite(y))return;
+ const parts=points.slice(0,180).map(p=>{
+  const a=rand()*6.283,d=220+rand()*380;
+  return {tx:p.dx,ty:p.dy,sx:Math.cos(a)*d,sy:Math.sin(a)*d*.8,delay:rand()*.8,turn:(1.6+rand()*1.6)*(rand()<.5?-1:1),r:.7+rand()*1.3,ph:rand()*6.28,up:30+rand()*60,out:(rand()-.5)*50};
+ });
+ // A few free motes fill the body with soft light.
+ for(let i=0;i<40;i++)parts.push({tx:(rand()-.5)*60,ty:(rand()-.5)*40,sx:(rand()-.5)*900,sy:(rand()-.5)*600,delay:rand()*.6,turn:2*(rand()<.5?-1:1),r:1.4+rand()*1.8,ph:rand()*6.28,up:20+rand()*40,out:(rand()-.5)*80,soft:true});
+ births.push({x,y,start:lastFront,parts,woke:false});
+}
+function drawBirths(ctx,w,h,seconds,dt){
+ for(let i=births.length-1;i>=0;i--){
+  const B=births[i],t=seconds-B.start;
+  if(t>B_END){births.splice(i,1);continue;}
+  if(!B.woke&&t>=B_WAKE){B.woke=true;drop(B.x,B.y,1);burst(B.x,B.y);}
+  // A soft halo of the gathering light around the forming body.
+  const gather=Math.min(1,t/B_GATHER),haloA=(t<B_WAKE?gather*.25:.25*Math.max(0,1-(t-B_WAKE)/1.2))+Math.exp(-Math.pow((t-B_WAKE)/.25,2))*.35;
+  if(haloA>.01){const g=glowSprite(160+gather*60);ctx.globalAlpha=haloA;ctx.drawImage(g,B.x-g.width/2,B.y-g.height/2);}
+  for(const p of B.parts){
+   let px,py,a;
+   if(t<B_GATHER){
+    const u=Math.min(1,Math.max(0,(t-p.delay)/(B_GATHER-p.delay))),e=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
+    const ang=(1-e)*p.turn,ca=Math.cos(ang),sa=Math.sin(ang);
+    const rx=p.sx*(1-e),ry=p.sy*(1-e);
+    px=B.x+p.tx+rx*ca-ry*sa;py=B.y+p.ty+rx*sa+ry*ca;a=.15+.6*e;
+   } else if(t<B_WAKE){
+    px=B.x+p.tx+Math.sin(t*6+p.ph)*.8;py=B.y+p.ty+Math.cos(t*5+p.ph)*.8;
+    a=.75+.25*Math.sin(t*9+p.ph);
+   } else {
+    const v=(t-B_WAKE)/(B_END-B_WAKE),f=v*v;
+    px=B.x+p.tx+p.out*f+Math.sin(t*3+p.ph)*4*v;py=B.y+p.ty-p.up*v*1.6;
+    a=(1-v)*(.8+.2*Math.sin(t*12+p.ph))+Math.exp(-Math.pow((t-B_WAKE)/.2,2));
+   }
+   const g=glowSprite(p.soft?p.r*7:p.r*(3.5+Math.exp(-Math.pow((t-B_WAKE)/.3,2))*3));
+   ctx.globalAlpha=Math.min(1,a*(p.soft?.35:1));ctx.drawImage(g,px-g.width/2,py-g.height/2);
+  }
+ }
+ ctx.globalAlpha=1;
+}
 // depth z: 0 near the glass, 1 far away.
 function spawnBubble(x,y,z,options){
  if(bubbles.length>70)return;
@@ -368,6 +411,7 @@ function foreground(w,h,seconds){
  ctx.globalCompositeOperation='lighter';
  updatePresence(seconds,dt);
  drawCurtain(ctx,w,h,seconds,dt);
+ drawBirths(ctx,w,h,seconds,dt);
  bubbles.sort((a,b)=>a.z-b.z);
  for(let i=bubbles.length-1;i>=0;i--){
   const b=bubbles[i];
@@ -462,7 +506,7 @@ function ringLight(x,y){
  return Math.min(1,v);
 }
 function presenceState(){return {x:presence.x,y:presence.y,energy:presence.energy};}
-root.AquariumEnvironment={background,texture,foreground,burst,feel,presenceLight,ringLight,presenceState,composite:()=> 'source-over'};
+root.AquariumEnvironment={background,texture,foreground,burst,birth,feel,presenceLight,ringLight,presenceState,composite:()=> 'source-over'};
 })(window);
 
 // Original catalog scenery: these are not visitor releases and never enter server statistics.
