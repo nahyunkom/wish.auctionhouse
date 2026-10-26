@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#000000">
     <meta
       name="description"
-      content="당신의 소망은 살아 있나요? 심해 수족관에서 여섯 번의 선택으로 깨어나는 나만의 소망생물."
+      content="당신의 소망은 살아 있나요? 소망을 발견하고, 나만의 생물을 만나, 함께 살아가는 바다로."
     >
     <title>소망경매장 — 당신의 소망은 살아 있나요?</title>
     <link rel="stylesheet" href="style.css">
@@ -22,6 +22,7 @@
     <header>
       <a href="./" id="home-link" class="brand">소망경매장 <span>WISH AUCTION</span></a>
       <div class="header-actions">
+        <button id="journey-menu" class="utility" type="button">둘러보기</button>
         <button id="motion" class="utility" aria-pressed="false">움직임 멈춤</button>
         <button id="about" class="about-button" aria-label="전시 소개">＋</button>
       </div>
@@ -40,8 +41,8 @@
       <h2>보이지 않던 소망에<br>생명을 부여하는 곳.</h2>
       <p>소망경매장은 당신의 소망을 심해생물의 모습으로 발견하는 전시 인터랙션입니다.</p>
       <p>경제, 관계, 자기실현, 건강·생존, 성장, 자유, 인정의 7가지 소망과 신뢰, 탐험, 축적, 회복, 공존, 몰입, 초월의 7가지 방식이 만나 소망생물의 세부 조합으로 이어집니다.</p>
-      <p>인사에 대한 답은 진단 점수에 반영되지 않습니다. 여섯 질문에서 축마다 가장 많이 선택한 유형을 사용하며, 동점이면 해당 축의 마지막 선택을 따릅니다.</p>
-      <p class="dialog-note">전시를 위한 창작 진단으로 심리검사가 아닙니다. 답변은 저장하지 않습니다. 관람객이 방류를 선택한 경우에만 생물 유형과 방류 시각이 공유 수족관에 일시적으로 전송됩니다.</p>
+      <p>기록한 순간·돌봄·편지는 진단 점수에 반영되지 않습니다. 여섯 질문에서 축마다 가장 많이 선택한 유형을 사용하며, 동점이면 해당 축의 마지막 선택을 따릅니다.</p>
+      <p class="dialog-note">전시를 위한 창작 진단으로 심리검사가 아닙니다. 진단 답변과 자유롭게 입력한 글은 서버에 저장하지 않습니다. 보관하기를 직접 선택한 경우에만 이 기기의 보관함에 생물 ID를 저장하며 언제든 비울 수 있습니다. 관람객이 방류를 선택한 경우에만 생물 유형과 방류 시각이 공유 수족관에 일시적으로 전송됩니다.</p>
     </dialog>
 
     <script src="config.js"></script>
@@ -50,6 +51,7 @@
     <script src="catalog-model.js"></script>
     <script src="catalog-ui.js"></script>
     <script src="app.js"></script>
+    <script src="journey.js"></script>
     <script src="particles.js"></script>
   </body>
 </html>

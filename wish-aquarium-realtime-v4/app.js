@@ -378,6 +378,7 @@ function releaseCreature() {
     return;
   }
 
+  const releasingResult = currentResult;
   realtime.releasing = true;
   announceResultAction('당신의 생물이 전시장 수족관으로 이동하고 있어요.', 'pending');
   syncRealtimeControls();
@@ -387,6 +388,7 @@ function releaseCreature() {
   };
 
   realtime.socket.timeout(Number(aquariumConfig.connectionTimeoutMs) || 8000).emit('creature:release', payload, (error, response) => {
+    if (currentResult !== releasingResult) return;
     realtime.releasing = false;
     if (error || !response?.ok) {
       announceResultAction(response?.message || '방류하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.', 'error');
@@ -453,6 +455,7 @@ function downloadBlob(blob, filename) {
 
 async function saveCreatureImage() {
   if (!currentResult) return;
+  const resultSnapshot = currentResult;
   const button = document.querySelector('#save-creature');
   const originalMarkup = button.innerHTML;
   button.disabled = true;
@@ -462,8 +465,9 @@ async function saveCreatureImage() {
 
   try {
     const blob = await createResultCardBlob();
-    const safeName = currentResult.creature.name.replace(/[\\/:*?"<>|]/g, '-');
-    const filename = `소망경매장_${safeName}_${currentResult.creature.id}.png`;
+    if (currentResult !== resultSnapshot) return;
+    const safeName = resultSnapshot.creature.name.replace(/[\\/:*?"<>|]/g, '-');
+    const filename = `소망경매장_${safeName}_${resultSnapshot.creature.id}.png`;
     const file = new File([blob], filename, { type: 'image/png' });
     let canShare = false;
     try {

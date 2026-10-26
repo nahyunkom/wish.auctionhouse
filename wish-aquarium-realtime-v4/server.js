@@ -67,6 +67,24 @@ app.get('/health', (_request, response) => {
   response.json({ ok: true, catalogVersion:catalog.version, catalogCount:catalog.count, creatures: creatures.length, uptimeSeconds: Math.round(process.uptime()) });
 });
 
+// Only actual, retained releases are counted; never fabricate survey statistics.
+app.get('/api/aquarium-summary', (_request, response) => {
+  cleanExpiredCreatures();
+  response.setHeader('Cache-Control', 'no-store');
+  response.json({
+    total: creatures.length,
+    retentionHours: creatureTtlMs / 3_600_000,
+    scope: 'currently-retained-releases',
+    generatedAt: new Date().toISOString(),
+    directions: situationLabels.map((label, index) => ({
+      label, count: creatures.filter(creature => creature.situationIndex === index).length
+    })),
+    methods: wayLabels.map((label, index) => ({
+      label, count: creatures.filter(creature => creature.wayIndex === index).length
+    }))
+  });
+});
+
 app.get(['/', '/index.html'], (_request, response) => response.sendFile(path.join(root, 'index.html')));
 app.get(['/shared-aquarium', '/shared-aquarium/', '/shared-aquarium.html'], (_request, response) => {
   response.sendFile(path.join(root, 'shared-aquarium.html'));
@@ -74,6 +92,7 @@ app.get(['/shared-aquarium', '/shared-aquarium/', '/shared-aquarium.html'], (_re
 
 for (const filename of [
   'style.css',
+  'journey.js',
   'app.js',
   'config.js',
   'data.js',
