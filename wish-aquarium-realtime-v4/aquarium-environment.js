@@ -1,5 +1,26 @@
 (function(root){
 'use strict';
+// ---- View: landscape, portrait, or a rotated projector ----
+// ?rotate=90 or ?rotate=-90 turns the whole aquarium for a projector mounted on its
+// side while the computer still outputs landscape. A portrait display needs nothing.
+const view=(()=>{
+ let rotation=0;
+ try{const r=Number(new URLSearchParams(location.search).get('rotate'));rotation=r===90?90:(r===-90||r===270)?-90:0;}catch(_){}
+ const width=()=>rotation?innerHeight:innerWidth;
+ const height=()=>rotation?innerWidth:innerHeight;
+ function apply(){
+  const stage=document.querySelector('#aquarium-stage');if(!stage||!rotation)return;
+  Object.assign(stage.style,{inset:'auto',left:'0',top:'0',width:innerHeight+'px',height:innerWidth+'px',transformOrigin:'0 0',
+   transform:rotation===90?'translate('+innerWidth+'px,0) rotate(90deg)':'translate(0,'+innerHeight+'px) rotate(-90deg)'});
+ }
+ // Screen coordinates (pointer events) to aquarium coordinates.
+ function toStage(x,y){return rotation===90?{x:y,y:innerWidth-x}:rotation===-90?{x:innerHeight-y,y:x}:{x,y};}
+ return {get rotation(){return rotation;},width,height,apply,toStage,portrait:()=>height()>width()*1.05};
+})();
+root.AquariumView=view;
+if(typeof document!=='undefined'&&document.readyState!=='loading')view.apply();
+else if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('DOMContentLoaded',view.apply);
+if(typeof addEventListener==='function')addEventListener('resize',view.apply);
 // Real-time participating water volume. No photographic textures or remote assets.
 const tinted=new WeakMap();
 let canvas,gl,program,uniforms,failed=false,lost=false,frames=0,lastTime=0,quality=.6;
@@ -66,14 +87,15 @@ void main(){
  // Light dancing on the underside of the surface.
  // Two ripple layers drifting in different directions make the light under the
  // surface weave and shimmer; brightest at the top, reaching a third of the way down.
- float ripple=surface(vec2(q.x*5.2+time*.10,q.y*1.4+time*.16));
- float ripple2=surface(vec2(q.x*3.4-time*.07,q.y*2.1-time*.11)+ripple*.6);
- float lineA=pow(clamp(1.-abs(ripple-.5)*4.2,0.,1.),2.);
- float lineB=pow(clamp(1.-abs(ripple2-.5)*4.8,0.,1.),2.);
- float reach=smoothstep(.62,1.,q.y);
- float pulse=.85+.15*sin(time*.6+q.x*4.);
- color+=vec3(.04,.30,.32)*lineA*reach*pulse+vec3(.03,.20,.24)*lineB*reach*(1.15-pulse*.3)
-       +vec3(.0,.07,.09)*smoothstep(.78,1.,q.y);
+ // Slow, soft light threads: wide gentle lines, low contrast, a long slow breath.
+ float ripple=surface(vec2(q.x*4.4+time*.05,q.y*1.3+time*.08));
+ float ripple2=surface(vec2(q.x*2.9-time*.035,q.y*1.9-time*.055)+ripple*.45);
+ float lineA=pow(clamp(1.-abs(ripple-.5)*3.2,0.,1.),1.7);
+ float lineB=pow(clamp(1.-abs(ripple2-.5)*3.6,0.,1.),1.7);
+ float reach=smoothstep(.66,1.,q.y);
+ float pulse=.9+.1*sin(time*.32+q.x*3.);
+ color+=vec3(.025,.19,.21)*lineA*reach*pulse+vec3(.02,.12,.15)*lineB*reach
+       +vec3(.0,.06,.08)*smoothstep(.8,1.,q.y);
  float columnX=.475+sin(time*.21+q.y*3.)*.009;
  float columnWidth=.025+(1.-q.y)*.058;
  float veil=exp(-pow((q.x-columnX)/columnWidth,2.));
@@ -97,7 +119,8 @@ function init(){
  canvas.addEventListener('webglcontextrestored',()=>{lost=false;failed=false;build();canvas.style.visibility='';});
  try{build();}catch(error){failed=true;canvas.style.visibility='hidden';console.warn('Water volume uses Canvas fallback:',error.message);}
  document.querySelector('#aquarium-stage').addEventListener('pointermove',event=>{
-  pointer.x=event.clientX/innerWidth-.5;pointer.y=.5-event.clientY/innerHeight;
+  const at=view.toStage(event.clientX,event.clientY);
+  pointer.x=at.x/view.width()-.5;pointer.y=.5-at.y/view.height();
  },{passive:true});
  document.querySelector('#aquarium-stage').addEventListener('pointerleave',()=>{pointer.x=pointer.y=0;},{passive:true});
 }
@@ -189,7 +212,7 @@ function ensureFront(w,h){
   for(let i=0;i<18;i++)motes.push({x:rand(),y:rand(),z:rand(),phase:rand()*6.28});
   const stage=document.querySelector('#aquarium-stage');
   if(stage){
-   const onPointer=e=>feel(e.clientX,e.clientY,e.pointerType==='mouse'&&!e.buttons?.55:1);
+   const onPointer=e=>{const at=view.toStage(e.clientX,e.clientY);feel(at.x,at.y,e.pointerType==='mouse'&&!e.buttons?.55:1);};
    stage.addEventListener('pointerdown',onPointer,{passive:true});
    stage.addEventListener('pointermove',onPointer,{passive:true});
   }

@@ -12,6 +12,18 @@ aquariumMotionPreference.addEventListener('change', event => { aquariumMotionRed
 
 function preload() {}
 
+// Aquarium size follows the view (portrait display or rotated projector).
+const viewW = () => window.AquariumView ? AquariumView.width() : windowWidth;
+const viewH = () => window.AquariumView ? AquariumView.height() : windowHeight;
+const portraitView = () => viewH() > viewW() * 1.05;
+// Creature scale comes from the shorter side, so portrait keeps landscape sizes.
+const sizeBasis = () => Math.min(viewW(), viewH());
+// In portrait the curated bottom-heavy layout is spread over the tall water column.
+function residentY(data, seed) {
+  if (!portraitView()) return data.screenY;
+  return .14 + (.5 * seededNoise(seed, 3) + .5 * data.screenY) * .8;
+}
+
 // Keep original PNGs intact; bound only the projection's in-memory textures.
 function getCreatureTexture(url) {
   if (creatureTextures.has(url)) return creatureTextures.get(url);
@@ -45,7 +57,8 @@ function pumpTextureQueue() {
 }
 
 function setup() {
-  const canvas = createCanvas(windowWidth, windowHeight);
+  if (window.AquariumView) AquariumView.apply();
+  const canvas = createCanvas(viewW(), viewH());
   canvas.parent('canvas-host');
   pixelRenderer = AquariumSprite.createRenderer(document.querySelector('#canvas-host'));
   pixelDensity(Math.min(window.devicePixelRatio || 1, 1.75));
@@ -83,9 +96,9 @@ class WishSwimmer {
     this.depth = data.exhibitionResident ? data.depth : .18+seededNoise(this.seed,8)*.65;
     this.scale = .9+seededNoise(this.seed,1)*.2;
     this.waterAlpha = .30 + (1-this.depth)*.54;
-    this.baseHeight = windowHeight*(.025+.18*Math.pow(1-this.depth,2))*this.scale;
+    this.baseHeight = sizeBasis()*(.025+.18*Math.pow(1-this.depth,2))*this.scale;
     this.x = isNew ? width*.5 : width*(data.exhibitionResident?data.screenX:seededNoise(this.seed,2));
-    this.y = isNew ? height*.53 : height*(data.exhibitionResident?data.screenY:.32+seededNoise(this.seed,3)*.60);
+    this.y = isNew ? height*.53 : height*(data.exhibitionResident?residentY(data,this.seed):.32+seededNoise(this.seed,3)*.60);
     this.baseY = this.y;
     this.speed = this.direction*(3+(1-this.depth)*8+seededNoise(this.seed,4)*3);
     this.bobAmount = 3 + seededNoise(this.seed, 6) * 3;
@@ -113,7 +126,7 @@ class WishSwimmer {
     const arrivalAlpha = (this.isNew ? Math.min(1, age / 1400) : 1) * this.waterAlpha;
     const bounds=this.image.silhouette.bounds;
     const ratio=bounds.width/bounds.height;
-    const drawHeight = Math.min(this.baseHeight,windowWidth*.30/ratio);
+    const drawHeight = Math.min(this.baseHeight,viewW()*(portraitView()?.5:.30)/ratio);
     const drawWidth = drawHeight * ratio;
     const texture = AquariumEnvironment.texture(this.image);
     const angle = aquariumMotionReduced?0:Math.sin(age * .00035 + this.phase) * .018;
@@ -206,11 +219,17 @@ function connectAquarium() {
 }
 
 function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  if (window.AquariumView) AquariumView.apply();
+  resizeCanvas(viewW(), viewH());
+  for (const swimmer of residentSwimmers) {
+    swimmer.baseY = height * residentY(swimmer.data, swimmer.seed);
+    swimmer.y = swimmer.baseY;
+    swimmer.baseHeight = sizeBasis()*(.025+.18*Math.pow(1-swimmer.depth,2))*swimmer.scale;
+  }
   for (const swimmer of swimmers) {
     swimmer.y = constrain(swimmer.y, height * .12, height * .86);
     swimmer.baseY = swimmer.y;
-    swimmer.baseHeight = windowHeight*(.025+.18*Math.pow(1-swimmer.depth,2))*swimmer.scale;
+    swimmer.baseHeight = sizeBasis()*(.025+.18*Math.pow(1-swimmer.depth,2))*swimmer.scale;
   }
 }
 
