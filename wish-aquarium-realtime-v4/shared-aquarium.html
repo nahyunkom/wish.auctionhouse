@@ -3,58 +3,19 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#0875c5">
     <meta name="robots" content="noindex,nofollow">
     <title>공유 수족관 — 소망경매장</title>
     <link rel="stylesheet" href="shared-aquarium.css">
   </head>
   <body>
-    <main id="aquarium-stage" aria-label="관람객의 소망생물이 헤엄치는 공유 수족관">
-      <div id="canvas-host" aria-hidden="true"></div>
-      <div class="aquarium-vignette" aria-hidden="true"></div>
-      <header class="aquarium-header">
-        <div>
-          <p>소망경매장 · WISH AUCTION</p>
-          <h1>공유 수족관</h1>
-        </div>
-        <div class="live-state" id="live-state" data-state="connecting">
-          <i aria-hidden="true"></i>
-          <span>수족관 연결 중</span>
-        </div>
-      </header>
-
-      <section class="aquarium-counter" aria-live="polite">
-        <span id="creature-count">00</span>
-        <p>함께 헤엄치는<br>소망생물</p>
-      </section>
-
-      <div class="arrival" id="arrival" aria-live="polite" aria-atomic="true">
-        <span>NEW WISH CREATURE</span>
-        <strong id="arrival-name"></strong>
-        <p>새로운 소망이 수족관에 도착했습니다.</p>
+    <main id="aquarium-stage" aria-label="소망생물들이 함께 헤엄치는 공유수족관">
+      <div class="reference-water" aria-hidden="true">
+        <img src="/assets/aquarium/reference-water.png" alt="" decoding="async" fetchpriority="high">
       </div>
-
-      <footer class="aquarium-footer">
-        <p>각자의 마음에서 태어난 소망들이<br>하나의 바다에서 함께 살아갑니다.</p>
-        <div class="aquarium-controls">
-          <details class="water-settings">
-            <summary>바다와 조명</summary>
-            <div class="water-panel">
-              <span class="water-label">바다 색상</span>
-              <div class="water-choices" role="group" aria-label="바다 색상">
-                <button type="button" data-water-choice="black" aria-pressed="true">검정 심해</button>
-                <button type="button" data-water-choice="blue" aria-pressed="false">깊은 파랑</button>
-              </div>
-              <label for="water-light">생물에 닿는 푸른빛 <output id="water-light-value" for="water-light">55%</output></label>
-              <input id="water-light" type="range" min="0" max="100" step="5" value="55" disabled>
-              <p class="water-note">파랑 바다에서 조명을 조절해 보세요.<br>선택한 설정은 이 기기에 저장됩니다.</p>
-            </div>
-          </details>
-          <button id="fullscreen-button" type="button">전체 화면</button>
-        </div>
-      </footer>
+      <div id="canvas-host" aria-hidden="true"></div>
+      <button id="fullscreen-button" type="button" aria-label="전체 화면">전체 화면</button>
     </main>
-
     <script src="/vendor/p5.min.js"></script>
     <script src="config.js"></script>
     <script src="data.js"></script>
@@ -63,4 +24,3 @@
     <script src="shared-aquarium.js"></script>
   </body>
 </html>
-

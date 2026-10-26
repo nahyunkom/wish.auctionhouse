@@ -63,13 +63,13 @@ function draw() {
   // Clear every frame: screen blending over old pixels bleaches PNG colors.
   AquariumEnvironment.background(drawingContext,width,height,millis()/1000);
   firstFrame = false;
-  drawBackgroundParticles();
+  // Reference photograph supplies the water and particulate detail.
   if(pixelRenderer)pixelRenderer.begin(width,height,Math.min(window.devicePixelRatio||1,1.75),AquariumEnvironment.composite());
   for (const swimmer of swimmers) {
     swimmer.update();
     swimmer.draw();
   }
-  drawArrivalRipples();
+  // No arrival graphics or text over the aquarium.
 }
 
 function makeBackgroundParticle(index) {
@@ -105,12 +105,13 @@ class WishSwimmer {
     }
     this.seed = Number(data.seed) || Math.floor(Math.random() * 100000);
     this.direction = this.seed % 2 ? 1 : -1;
-    this.scale = .72 + seededNoise(this.seed, 1) * .7;
-    this.baseHeight = Math.min(windowHeight * .31, Math.max(150, windowWidth * .16)) * this.scale;
+    this.scale = .55 + seededNoise(this.seed, 1) * .6;
+    this.waterAlpha = .52 + seededNoise(this.seed, 7) * .26;
+    this.baseHeight = Math.min(windowHeight * .12, Math.max(54, windowWidth * .08)) * this.scale;
     this.x = isNew ? width * .5 : seededNoise(this.seed, 2) * width;
     this.y = isNew ? height * .53 : height * (.16 + seededNoise(this.seed, 3) * .68);
     this.baseY = this.y;
-    this.speed = this.direction * (4 + seededNoise(this.seed, 4) * 5);
+    this.speed = this.direction * (3 + seededNoise(this.seed, 4) * 4);
     this.bobAmount = 3 + seededNoise(this.seed, 6) * 3;
     this.phase = seededNoise(this.seed, 5) * TWO_PI;
     this.bornAt = millis();
@@ -133,7 +134,7 @@ class WishSwimmer {
   draw() {
     if (!this.image?.width || this.image.silhouette.empty) return;
     const age = Math.max(0, millis() - this.bornAt);
-    const arrivalAlpha = this.isNew ? Math.min(1, age / 1400) : 1;
+    const arrivalAlpha = (this.isNew ? Math.min(1, age / 1400) : 1) * this.waterAlpha;
     const bounds=this.image.silhouette.bounds;
     const ratio=bounds.width/bounds.height;
     const drawHeight = Math.min(this.baseHeight,windowWidth*.30/ratio);
@@ -178,17 +179,9 @@ function syncAquariumState(data) {
   updateCount();
 }
 
-function updateCount() {
-  document.querySelector('#creature-count').textContent = String(swimmers.length).padStart(2, '0');
-}
+function updateCount() { /* No counter on the exhibition screen. */ }
 
-function showArrival(name) {
-  const panel = document.querySelector('#arrival');
-  document.querySelector('#arrival-name').textContent = name;
-  panel.classList.add('is-visible');
-  window.clearTimeout(arrivalTimer);
-  arrivalTimer = window.setTimeout(() => panel.classList.remove('is-visible'), 4000);
-}
+function showArrival() { /* Keep the screen free of arrival labels. */ }
 
 function drawArrivalRipples() {
   for (let index = arrivals.length - 1; index >= 0; index -= 1) {
@@ -208,11 +201,7 @@ function drawArrivalRipples() {
   }
 }
 
-function setLiveState(state, label) {
-  const element = document.querySelector('#live-state');
-  element.dataset.state = state;
-  element.querySelector('span').textContent = label;
-}
+function setLiveState() { /* Connection state remains internal. */ }
 
 function connectAquarium() {
   const baseUrl = String(displayConfig.socketUrl || '').replace(/\/$/, '');
@@ -243,14 +232,19 @@ function windowResized() {
   for (const swimmer of swimmers) {
     swimmer.y = constrain(swimmer.y, height * .12, height * .86);
     swimmer.baseY = swimmer.y;
-    swimmer.baseHeight = Math.min(windowHeight * .31, Math.max(150, windowWidth * .16)) * swimmer.scale;
+    swimmer.baseHeight = Math.min(windowHeight * .12, Math.max(54, windowWidth * .08)) * swimmer.scale;
   }
   firstFrame = true;
 }
 
 function toggleFullscreen() {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-  else document.exitFullscreen?.();
+  if (!document.fullscreenElement) {
+    const request=document.documentElement.requestFullscreen?.();
+    request?.catch(()=>{});
+  } else {
+    const exit=document.exitFullscreen?.();
+    exit?.catch(()=>{});
+  }
 }
 
 function keyPressed() {
@@ -259,5 +253,7 @@ function keyPressed() {
 
 document.querySelector('#fullscreen-button').addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', () => {
-  document.querySelector('#fullscreen-button').textContent = document.fullscreenElement ? '전체 화면 닫기' : '전체 화면';
+  const button=document.querySelector('#fullscreen-button');
+  const label=document.fullscreenElement ? '전체 화면 닫기' : '전체 화면';
+  button.textContent=label;button.setAttribute('aria-label',label);
 });
