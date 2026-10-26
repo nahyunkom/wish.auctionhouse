@@ -257,7 +257,7 @@
       gl.uniform1f(uniforms.uBlur,blur);gl.uniform1f(uniforms.uPad,Math.ceil(blur));
       gl.uniform1f(uniforms.uWorld,still?0:(Number(options.world)||0)%(200*Math.PI));
       gl.uniform1f(uniforms.uWobble,still?0:clamp(Number(options.wobble)||0,0,4));
-      gl.uniform1f(uniforms.uLight,clamp(Number(options.light)||0,0,1.5));
+      gl.uniform1f(uniforms.uLight,clamp(Number(options.light)||0,0,2.6));
       gl.uniform1f(uniforms.uFogAmount,clamp(Number(options.fog)||0,0,.9));
       const fog=options.fogColor||[0,0,0];gl.uniform3f(uniforms.uFog,fog[0],fog[1],fog[2]);
       gl.drawArrays(gl.TRIANGLES,0,6);return true;
