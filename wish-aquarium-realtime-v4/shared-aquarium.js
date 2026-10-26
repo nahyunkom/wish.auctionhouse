@@ -83,6 +83,11 @@ function draw() {
   // No arrival text over the aquarium; a release is marked only by rising bubbles.
 }
 
+// Creatures whose wish is to belong (소속 군체형) swim as a small school: several
+// small copies of the same original PNG moving together, loosely, like fish.
+const SCHOOL_WISH = '소속 군체형';
+const isSchooling = data => data.school === true || data.wishType === SCHOOL_WISH;
+
 class WishSwimmer {
   constructor(data, isNew = false) {
     this.data = data;
@@ -102,10 +107,32 @@ class WishSwimmer {
     this.baseY = this.y;
     this.speed = this.direction*(3+(1-this.depth)*8+seededNoise(this.seed,4)*3);
     this.bobAmount = 3 + seededNoise(this.seed, 6) * 3;
+    // A slow wander up and down, so creatures drift rather than glide on rails.
+    this.wander = 10 + seededNoise(this.seed, 9) * 28;
     this.phase = seededNoise(this.seed, 5) * TWO_PI;
     this.bornAt = millis();
     this.lastUpdateAt = this.bornAt;
     this.isNew = isNew;
+    this.school = isSchooling(data) ? this.makeSchool() : null;
+    this.vy = 0;
+  }
+
+  makeSchool() {
+    // Schools swim a little quicker than single drifters.
+    this.speed *= 1.5;
+    this.wander *= 1.4;
+    const count = 7 + Math.floor(seededNoise(this.seed, 11) * 5);
+    const members = [];
+    for (let i = 0; i < count; i++) {
+      const a = seededNoise(this.seed, 20 + i) * TWO_PI, r = Math.sqrt(seededNoise(this.seed, 40 + i));
+      members.push({
+        ox: Math.cos(a) * r * 3.8, oy: Math.sin(a) * r * 1.7,
+        size: .7 + seededNoise(this.seed, 60 + i) * .45,
+        phase: seededNoise(this.seed, 80 + i) * TWO_PI,
+        x: this.x, y: this.y, vx: 0, vy: 0
+      });
+    }
+    return members;
   }
 
   update() {
@@ -113,12 +140,34 @@ class WishSwimmer {
     const seconds = Math.min(.1, Math.max(0, now - this.lastUpdateAt) / 1000);
     this.lastUpdateAt = now;
     if(aquariumMotionReduced)return;
-    this.x += this.speed * seconds;
-    this.y = this.baseY + Math.sin((now - this.bornAt) * .00045 + this.phase) * this.bobAmount;
-    const margin = this.baseHeight * 1.2;
+    const t = (now - this.bornAt) / 1000;
+    const before = this.x, beforeY = this.y;
+    this.x += this.speed * (1 + .3 * Math.sin(t * .07 + this.phase)) * seconds;
+    this.y = this.baseY + Math.sin(t * .45 + this.phase) * this.bobAmount
+      + Math.sin(t * .06 + this.phase * 1.7) * this.wander * Math.min(1.4, sizeBasis() / 1080);
+    this.vy = seconds ? (this.y - beforeY) / seconds : 0;
+    const margin = this.baseHeight * (this.school ? 4 : 1.2);
     if (this.direction > 0 && this.x > width + margin) this.x = -margin;
     if (this.direction < 0 && this.x < -margin) this.x = width + margin;
+    if (this.school) {
+      const jump = this.x - before - this.speed * seconds * (1 + .3 * Math.sin(t * .07 + this.phase));
+      const unit = this.memberHeight();
+      // The school breathes: it tightens and loosens slowly.
+      const spread = .8 + .3 * Math.sin(t * .13 + this.phase);
+      for (const m of this.school) {
+        if (Math.abs(jump) > 1) m.x += jump;
+        const tx = this.x + (m.ox * spread + Math.sin(t * .5 + m.phase) * .35) * unit;
+        const ty = this.y + (m.oy * spread + Math.cos(t * .43 + m.phase) * .3) * unit;
+        // Each fish follows its place with a soft spring, so turns ripple through the group.
+        m.vx += ((tx - m.x) * 1.5 - m.vx * 1.7) * seconds;
+        m.vy += ((ty - m.y) * 1.5 - m.vy * 1.7) * seconds;
+        m.x += (m.vx + this.speed * .15) * seconds;
+        m.y += m.vy * seconds;
+      }
+    }
   }
+
+  memberHeight() { return this.baseHeight * .42; }
 
   draw() {
     if (!this.image?.width || this.image.silhouette.empty) return;
@@ -126,29 +175,44 @@ class WishSwimmer {
     const arrivalAlpha = (this.isNew ? Math.min(1, age / 1400) : 1) * this.waterAlpha;
     const bounds=this.image.silhouette.bounds;
     const ratio=bounds.width/bounds.height;
-    const drawHeight = Math.min(this.baseHeight,viewW()*(portraitView()?.5:.30)/ratio);
-    const drawWidth = drawHeight * ratio;
     const texture = AquariumEnvironment.texture(this.image);
-    const angle = aquariumMotionReduced?0:Math.sin(age * .00035 + this.phase) * .018;
     const look = underwaterLook(this.depth);
     // Near a visitor's touch the water in front of a creature stirs: its outline
     // ripples more and the moving light on it brightens a little.
     const lit = AquariumEnvironment.presenceLight ? AquariumEnvironment.presenceLight(this.x, this.y) : 0;
     if (lit > .01) { look.wobble += lit * 2.4; look.light += lit * .9; look.fog *= 1 - lit * .35; }
+    // Gentle tilt with the climb or descent.
+    const slope = aquariumMotionReduced ? 0 : Math.max(-.18, Math.min(.18, this.vy / Math.max(4, Math.abs(this.speed)) * .25));
+    if (this.school) {
+      const unit = this.memberHeight();
+      for (const m of this.school) {
+        const h = Math.min(unit * m.size, viewW() * .12 / ratio);
+        const tilt = aquariumMotionReduced ? 0 : Math.max(-.3, Math.min(.3, m.vy / Math.max(6, Math.abs(this.speed) * 1.5) * .3)) * this.direction;
+        this.drawOne(texture, ratio, m.x, m.y, h, tilt + Math.sin(age * .0011 + m.phase) * .04, age, m.phase, arrivalAlpha * (.85 + .15 * m.size), look);
+      }
+      return;
+    }
+    const drawHeight = Math.min(this.baseHeight,viewW()*(portraitView()?.5:.30)/ratio);
+    const angle = aquariumMotionReduced?0:Math.sin(age * .00035 + this.phase) * .018 + slope * this.direction;
+    this.drawOne(texture, ratio, this.x, this.y, drawHeight, angle, age, this.phase, arrivalAlpha, look);
+  }
+
+  drawOne(texture, ratio, x, y, drawHeight, angle, age, phase, alpha, look) {
+    const drawWidth = drawHeight * ratio;
     if(pixelRenderer?.draw(texture,this.image.silhouette,{
-      x:this.x,y:this.y,width:drawWidth,height:drawHeight,angle,time:age/1000,
-      phase:this.phase,alpha:arrivalAlpha,reducedMotion:aquariumMotionReduced,
+      x,y,width:drawWidth,height:drawHeight,angle,time:age/1000,
+      phase,alpha,reducedMotion:aquariumMotionReduced,
       world:millis()/1000,...look
     }))return;
     const context = drawingContext;
     context.save();
-    context.globalAlpha = arrivalAlpha;
+    context.globalAlpha = alpha;
     context.globalCompositeOperation = 'source-over';
     context.globalCompositeOperation = AquariumEnvironment.composite();
-    context.translate(this.x, this.y);
+    context.translate(x, y);
     context.rotate(angle);
     if('filter' in context)context.filter=`blur(${look.blur.toFixed(1)}px)`;
-    AquariumSprite.draw(context,texture,this.image.silhouette,drawWidth,drawHeight,age/1000,this.phase,aquariumMotionReduced);
+    AquariumSprite.draw(context,texture,this.image.silhouette,drawWidth,drawHeight,age/1000,phase,aquariumMotionReduced);
     context.restore();
   }
 }

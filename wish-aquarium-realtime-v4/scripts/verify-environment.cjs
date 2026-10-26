@@ -11,7 +11,8 @@ assert(!/url\(/.test(css),'No CSS background photographs');
 const source=fs.readFileSync(path.join(root,'aquarium-environment.js'),'utf8');
 assert(source.includes('for(int i=0;i<28;i++)'),'Volumetric ray integration');
 const residents={window:{}};vm.runInNewContext(source.slice(source.indexOf('window.AQUARIUM_RESIDENTS=')),residents);
-assert.equal(residents.window.AQUARIUM_RESIDENTS.length,38);
+assert.equal(residents.window.AQUARIUM_RESIDENTS.length,40);
+assert.equal(residents.window.AQUARIUM_RESIDENTS.filter(r=>r.school).length,3,'Three 소속 군체형 residents swim as schools');
 for(const r of residents.window.AQUARIUM_RESIDENTS){assert(/^assets\/catalog\/WC-[a-f0-9]{12}\.png$/.test(r.imageUrl));assert(r.depth>0&&r.depth<1);assert(r.exhibitionResident);}
 let gradients=0,rects=0,clears=0,arcs=0,lastPixels,shaderSources=[],draws=0,uploads=0;
 const gradient={addColorStop(){}};

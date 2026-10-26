@@ -478,6 +478,7 @@ window.AQUARIUM_RESIDENTS=[
   {
     "id": "resident:WC-a24e50a2dece",
     "imageUrl": "assets/catalog/WC-a24e50a2dece.png",
+    "school": true,
     "seed": 8741,
     "exhibitionResident": true,
     "depth": 0.5880990364001264,
@@ -708,5 +709,25 @@ window.AQUARIUM_RESIDENTS=[
     "depth": 0.8211562896952092,
     "screenX": 0.34113794618315296,
     "screenY": 0.473196822525095
+  },
+  {
+    "id": "resident:WC-979b35e1c2a7",
+    "imageUrl": "assets/catalog/WC-979b35e1c2a7.png",
+    "seed": 27435,
+    "exhibitionResident": true,
+    "school": true,
+    "depth": 0.42,
+    "screenX": 0.3,
+    "screenY": 0.46
+  },
+  {
+    "id": "resident:WC-e5f58f89958c",
+    "imageUrl": "assets/catalog/WC-e5f58f89958c.png",
+    "seed": 28154,
+    "exhibitionResident": true,
+    "school": true,
+    "depth": 0.58,
+    "screenX": 0.72,
+    "screenY": 0.62
   }
 ];
