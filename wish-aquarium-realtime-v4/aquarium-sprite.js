@@ -101,11 +101,14 @@
     attribute vec2 aCorner;
     uniform vec2 uViewport,uPosition,uSize;
     uniform float uAngle;
+    uniform float uPad;
     varying vec2 vLocal;
+    varying vec2 vScreen;
     void main(){
-      vLocal=(aCorner-.5)*(uSize+vec2(10.));
+      vLocal=(aCorner-.5)*(uSize+vec2(10.+uPad*2.));
       float c=cos(uAngle),s=sin(uAngle);
       vec2 p=uPosition+vec2(c*vLocal.x-s*vLocal.y,s*vLocal.x+c*vLocal.y);
+      vScreen=p;
       gl_Position=vec4(p.x/uViewport.x*2.-1.,1.-p.y/uViewport.y*2.,0.,1.);
     }`;
   const fragmentSource = `
@@ -114,7 +117,23 @@
     uniform vec4 uCrop;
     uniform vec2 uSize,uCenter;
     uniform float uTime,uPhase,uGain,uAlpha;
+    // Underwater look, display only: depth blur, shared refraction, haze and moving caustic light.
+    uniform float uWorld,uBlur,uFogAmount,uWobble,uLight;
+    uniform vec3 uFog;
+    uniform vec2 uView;
     varying vec2 vLocal;
+    varying vec2 vScreen;
+    vec4 tap(vec2 uv){
+      if(uv.x<0.||uv.y<0.||uv.x>1.||uv.y>1.)return vec4(0.);
+      vec4 c=texture2D(uImage,uCrop.xy+uv*uCrop.zw);
+      return vec4(c.rgb*c.a,c.a);
+    }
+    float caustic(vec2 p,float t){
+      vec2 q=p*.011;
+      float a=sin(q.x*3.1+t*.95+sin(q.y*2.3+t*.62)*1.4);
+      float b=sin(q.y*3.7-t*.74+sin(q.x*2.9-t*.53)*1.4);
+      return pow(.5+.5*a*b,3.);
+    }
     void main(){
       vec2 q=vLocal/uSize+.5;
       vec2 d=q-uCenter;
@@ -127,11 +146,30 @@
       );
       vec2 breath=d*sin(uTime*.92+uPhase)*min(uSize.x,uSize.y)*.004;
       vec2 offset=(wave*(.28+.72*peripheral)*amp+breath*uGain);
-      vec2 uv=q-offset/uSize;
-      if(uv.x<0.||uv.y<0.||uv.x>1.||uv.y>1.)discard;
-      vec4 color=texture2D(uImage,uCrop.xy+uv*uCrop.zw);
+      // The same slow refraction field crosses every creature, like looking through moving water.
+      vec2 refraction=vec2(
+        sin(vScreen.y*.043+uWorld*1.25)+.6*sin((vScreen.x+vScreen.y)*.021-uWorld*.83),
+        cos(vScreen.x*.038-uWorld*1.07)*.8+.4*sin(vScreen.y*.017+uWorld*.61)
+      )*uWobble;
+      vec2 uv=q-(offset+refraction)/uSize;
+      vec4 color=tap(uv)*.13;
+      if(uBlur>.05){
+        // Three staggered rings: a smooth soft focus instead of ghosted copies.
+        vec2 r=vec2(uBlur)/uSize;
+        for(int i=0;i<8;i++){
+          float a=float(i)*.785398+uPhase;
+          color+=tap(uv+vec2(cos(a),sin(a))*r)*.026
+                +tap(uv+vec2(cos(a+.2618),sin(a+.2618))*r*.68)*.039
+                +tap(uv+vec2(cos(a+.5236),sin(a+.5236))*r*.36)*.044;
+        }
+      } else color=tap(uv);
+      if(color.a<.002)discard;
+      vec2 sc=vScreen/uView;
+      float light=caustic(vScreen,uWorld)*uLight*mix(1.,.3,clamp(sc.y,0.,1.));
+      vec3 rgb=color.rgb*(1.+light*.55)+vec3(.02,.09,.1)*light*color.a;
+      rgb=mix(rgb,uFog*color.a,uFogAmount);
       float alpha=color.a*uAlpha;
-      gl_FragColor=vec4(color.rgb*alpha,alpha);
+      gl_FragColor=vec4(rgb*uAlpha,alpha);
     }`;
   function createRenderer(host) {
     if(!host || typeof document==='undefined')return null;
@@ -161,7 +199,7 @@
       gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,0,1,1,0,1,1]),gl.STATIC_DRAW);
       const corner=gl.getAttribLocation(program,'aCorner');
       gl.enableVertexAttribArray(corner);gl.vertexAttribPointer(corner,2,gl.FLOAT,false,0,0);
-      for(const name of ['uViewport','uPosition','uSize','uAngle','uImage','uCrop','uCenter','uTime','uPhase','uGain','uAlpha'])uniforms[name]=gl.getUniformLocation(program,name);
+      for(const name of ['uViewport','uPosition','uSize','uAngle','uImage','uCrop','uCenter','uTime','uPhase','uGain','uAlpha','uPad','uWorld','uBlur','uFogAmount','uWobble','uLight','uFog','uView'])uniforms[name]=gl.getUniformLocation(program,name);
       gl.activeTexture(gl.TEXTURE0);gl.uniform1i(uniforms.uImage,0);
       gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
       gl.clearColor(0,0,0,0);return true;
@@ -178,7 +216,7 @@
       if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
       canvas.style.mixBlendMode=composite==='screen'?'screen':'normal';
       gl.viewport(0,0,w,h);gl.useProgram(program);
-      gl.uniform2f(uniforms.uViewport,viewWidth,viewHeight);gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform2f(uniforms.uViewport,viewWidth,viewHeight);gl.uniform2f(uniforms.uView,viewWidth,viewHeight);gl.clear(gl.COLOR_BUFFER_BIT);
       return true;
     }
     function textureFor(source){
@@ -214,6 +252,14 @@
       gl.uniform1f(uniforms.uTime,(options.time||0)%(200*Math.PI));
       gl.uniform1f(uniforms.uPhase,options.phase||0);gl.uniform1f(uniforms.uGain,options.reducedMotion?0:1);
       gl.uniform1f(uniforms.uAlpha,options.alpha===undefined?1:clamp(options.alpha,0,1));
+      const still=Boolean(options.reducedMotion);
+      const blur=clamp(Number(options.blur)||0,0,8);
+      gl.uniform1f(uniforms.uBlur,blur);gl.uniform1f(uniforms.uPad,Math.ceil(blur));
+      gl.uniform1f(uniforms.uWorld,still?0:(Number(options.world)||0)%(200*Math.PI));
+      gl.uniform1f(uniforms.uWobble,still?0:clamp(Number(options.wobble)||0,0,4));
+      gl.uniform1f(uniforms.uLight,clamp(Number(options.light)||0,0,1.5));
+      gl.uniform1f(uniforms.uFogAmount,clamp(Number(options.fog)||0,0,.9));
+      const fog=options.fogColor||[0,0,0];gl.uniform3f(uniforms.uFog,fog[0],fog[1],fog[2]);
       gl.drawArrays(gl.TRIANGLES,0,6);return true;
     }
     return {begin,draw:drawCreature,get available(){return ready;},get textureCount(){return textures.size;}};

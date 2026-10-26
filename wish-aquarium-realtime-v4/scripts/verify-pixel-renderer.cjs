@@ -8,7 +8,7 @@ function fixture(compileWorks=true){
   createBuffer:()=>({}),bindBuffer(){},bufferData(){},getAttribLocation:()=>0,enableVertexAttribArray(){},vertexAttribPointer(){},
   getUniformLocation:(_p,name)=>name,useProgram(){},activeTexture(){},uniform1i(){},enable(){},blendFunc(){},clearColor(){},viewport(){},clear(){},
   uniform1f:(key,v)=>{assert.ok(Number.isFinite(v));uniforms[key]=v;},uniform2f:(key,...v)=>{assert.ok(v.every(Number.isFinite));uniforms[key]=v;},
-  uniform4f:(key,...v)=>{assert.ok(v.every(Number.isFinite));uniforms[key]=v;},
+  uniform4f:(key,...v)=>{assert.ok(v.every(Number.isFinite));uniforms[key]=v;},uniform3f:(key,...v)=>{assert.ok(v.every(Number.isFinite));uniforms[key]=v;},
   createTexture:()=>({}),bindTexture(){},texParameteri(){},pixelStorei(){},
   texImage2D(){uploads++;},deleteTexture(){deletes++;},drawArrays(){draws++;}
  },{get(target,key){return key in target?target[key]:1;}});

@@ -22,9 +22,9 @@ float noise(vec2 p){
  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
 }
 float surface(vec2 p){
- return .55*noise(p*1.8+vec2(time*.055,time*.022))
-       +.28*noise(p*4.2-vec2(time*.04,time*.026))
-       +.17*noise(p*9.1+vec2(time*.018,-time*.03));
+ return .55*noise(p*1.8+vec2(time*.21,time*.09))
+       +.28*noise(p*4.2-vec2(time*.17,time*.12))
+       +.17*noise(p*9.1+vec2(time*.08,-time*.14));
 }
 void main(){
  vec2 q=uv;float aspect=resolution.x/resolution.y;
@@ -43,12 +43,14 @@ void main(){
   vec2 entry=vec2(p.x+.13*depth,p.z+.04*depth);
   float wave=surface(entry*.44);
   float caustic=pow(clamp(1.-abs(wave-.51)*7.,0.,1.),3.);
-  float beamCenter=-.16+.10*p.z+sin(p.z*.35+time*.075)*.10;
+  // Shafts sway with the surface above; their strength flickers as waves pass.
+  float beamCenter=-.16+.10*p.z+sin(p.z*.35+time*.22)*.12+sin(time*.47+p.y*.6)*.035;
   float mainBeam=exp(-pow((p.x-beamCenter)/(.28+depth*.055),2.));
   float broadBeam=exp(-pow((p.x-beamCenter)/(.72+depth*.10),2.));
   float sideBeam=exp(-pow((p.x+2.4+.08*p.z)/.36,2.))*.19;
   float visibility=exp(-depth*.13);
-  float shafts=(mainBeam*(.64+caustic*.78)+broadBeam*.11+sideBeam)*visibility;
+  float flicker=.82+.18*sin(time*1.1+p.z*1.7+wave*6.);
+  float shafts=(mainBeam*(.64+caustic*.78)+broadBeam*.11+sideBeam)*visibility*flicker;
   vec3 scatter=ambient*(.90+wave*.12)+vec3(.0,.65,.60)*shafts;
   // Sparse suspended water density, low-frequency variation only.
   float density=.095+noise(p.xz*.24+time*.005)*.018;
@@ -61,7 +63,11 @@ void main(){
  // A broad cyan opening above the central shaft; no hard surface or seabed.
  float opening=exp(-pow((q.x-.47)/.13,2.))*pow(q.y,4.);
  color+=vec3(.0,.30,.20)*opening;
- float columnX=.475+sin(time*.065+q.y*3.)*.004;
+ // Light dancing on the underside of the surface.
+ float ripple=surface(vec2(q.x*5.2,q.y*1.4+time*.05));
+ float sheet=pow(clamp(1.-abs(ripple-.5)*5.,0.,1.),2.)*smoothstep(.72,1.,q.y);
+ color+=vec3(.02,.15,.17)*sheet+vec3(.0,.05,.07)*smoothstep(.8,1.,q.y);
+ float columnX=.475+sin(time*.21+q.y*3.)*.009;
  float columnWidth=.025+(1.-q.y)*.058;
  float veil=exp(-pow((q.x-columnX)/columnWidth,2.));
  float filament=.62+.38*surface(vec2(q.x*75.,q.y*.8));
@@ -150,7 +156,87 @@ function texture(image){
  }
  ctx.putImageData(data,0,0);tinted.set(image,copy);return copy;
 }
-root.AquariumEnvironment={background,texture,composite:()=> 'source-over'};
+// ---- Foreground: rising bubbles and near, out-of-focus particles ----
+// Drawn on its own canvas above the creatures. No images; every bubble is drawn.
+let front=null,frontCtx=null,frontScale=1,lastFront=0;
+const bubbles=[],motes=[],bubbleSprites=new Map();
+const vents=[{x:.17,rate:.3,drift:1.3},{x:.62,rate:.45,drift:2.1},{x:.88,rate:.22,drift:.7}];
+let seedValue=7331;
+function rand(){seedValue=(seedValue*1664525+1013904223)>>>0;return seedValue/4294967296;}
+function ensureFront(w,h){
+ if(!front){
+  front=document.createElement('canvas');front.setAttribute('aria-hidden','true');front.className='water-foreground';
+  Object.assign(front.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});
+  document.querySelector('#canvas-host').appendChild(front);frontCtx=front.getContext('2d');
+  for(let i=0;i<26;i++)motes.push({x:rand(),y:rand(),z:rand(),phase:rand()*6.28});
+ }
+ frontScale=Math.min(window.devicePixelRatio||1,1.5);
+ const cw=Math.round(w*frontScale),ch=Math.round(h*frontScale);
+ if(front.width!==cw||front.height!==ch){front.width=cw;front.height=ch;}
+}
+function bubbleSprite(radius){
+ const key=Math.max(2,Math.round(radius*2));
+ if(bubbleSprites.has(key))return bubbleSprites.get(key);
+ const size=key*2+4,c=document.createElement('canvas');c.width=c.height=size;
+ const g=c.getContext('2d'),r=key,m=size/2;
+ const body=g.createRadialGradient(m-r*.25,m-r*.3,r*.1,m,m,r);
+ body.addColorStop(0,'rgba(235,255,255,.32)');body.addColorStop(.55,'rgba(150,230,245,.06)');
+ body.addColorStop(.86,'rgba(190,245,255,.30)');body.addColorStop(1,'rgba(190,245,255,0)');
+ g.fillStyle=body;g.beginPath();g.arc(m,m,r,0,Math.PI*2);g.fill();
+ g.fillStyle='rgba(255,255,255,.85)';g.beginPath();g.arc(m-r*.38,m-r*.4,Math.max(.6,r*.16),0,Math.PI*2);g.fill();
+ bubbleSprites.set(key,c);return c;
+}
+function spawnBubble(x,y,size,spread){
+ if(bubbles.length>260)return;
+ bubbles.push({x,y,r:size,vy:12+size*8+rand()*16,phase:rand()*6.28,wob:5+rand()*12,freq:1.2+rand()*1.8,spread:spread||0,born:lastFront,y0:y});
+}
+// A release is marked by a soft column of bubbles, never by text.
+function burst(x,y){
+ if(motion.matches||!Number.isFinite(x)||!Number.isFinite(y))return;
+ for(let i=0;i<34;i++)spawnBubble(x+(rand()-.5)*60,y+(rand()-.2)*40,1.2+rand()*4.2,(rand()-.5)*26);
+}
+function foreground(w,h,seconds){
+ if(!document.querySelector('#canvas-host'))return;
+ ensureFront(w,h);
+ const ctx=frontCtx;ctx.setTransform(frontScale,0,0,frontScale,0,0);ctx.clearRect(0,0,w,h);
+ if(motion.matches){lastFront=seconds;return;}
+ const dt=lastFront?Math.min(.1,Math.max(0,seconds-lastFront)):0;lastFront=seconds;
+ // Vents release irregular strings of bubbles from below the frame.
+ for(const v of vents){
+  if(rand()<v.rate*dt*(.6+.8*Math.max(0,Math.sin(seconds*.31+v.x*9.)))*6){
+   // Bubbles leave in small irregular clusters from a source that slowly wanders.
+   const n=1+Math.floor(rand()*rand()*6);
+   const sx=w*(v.x+Math.sin(seconds*.05*v.drift+v.x*20.)*.03);
+   for(let i=0;i<n;i++)spawnBubble(sx+(rand()-.5)*26,h+12+i*(6+rand()*14),.7+rand()*rand()*3.4,(rand()-.5)*10);
+  }
+ }
+ // Rare large bubble passing close to the glass, out of focus.
+ if(rand()<dt*.05)spawnBubble(w*(.1+rand()*.8),h+40,7+rand()*6,0);
+ for(let i=bubbles.length-1;i>=0;i--){
+  const b=bubbles[i];
+  b.y-=b.vy*dt;b.spread*=Math.pow(.4,dt);b.x+=b.spread*dt;
+  const risen=Math.min(1,Math.max(0,(b.y0-b.y)/h));
+  const x=b.x+Math.sin(seconds*b.freq+b.phase)*b.wob*(.25+risen*.9)*(.6+b.r*.1);
+  if(b.y<-30){bubbles.splice(i,1);continue;}
+  const top=Math.min(1,Math.max(0,b.y/(h*.18)));
+  const sprite=bubbleSprite(b.r*(1+(1-b.y/h)*.25));
+  ctx.globalAlpha=(b.r>6?.38:.85)*top;
+  if(b.r>6&&'filter' in ctx)ctx.filter='blur(2.5px)';
+  ctx.drawImage(sprite,x-sprite.width/2,b.y-sprite.height/2);
+  if(b.r>6&&'filter' in ctx)ctx.filter='none';
+ }
+ // Near particles drifting past the lens: large, soft and slow.
+ for(const m of motes){
+  m.y-=dt*(.004+m.z*.006);m.x+=Math.sin(seconds*.2+m.phase)*dt*.003;
+  if(m.y<-.05){m.y=1.05;m.x=rand();}
+  const r=2+m.z*5,px=(m.x%1+1)%1*w,py=m.y*h;
+  const g=ctx.createRadialGradient(px,py,0,px,py,r);
+  g.addColorStop(0,'rgba(190,240,250,'+(.10+m.z*.10)+')');g.addColorStop(1,'rgba(190,240,250,0)');
+  ctx.globalAlpha=1;ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill();
+ }
+ ctx.globalAlpha=1;
+}
+root.AquariumEnvironment={background,texture,foreground,burst,composite:()=> 'source-over'};
 })(window);
 
 // Original catalog scenery: these are not visitor releases and never enter server statistics.

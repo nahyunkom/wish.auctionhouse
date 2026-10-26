@@ -65,7 +65,9 @@ function draw() {
     swimmer.update();
     swimmer.draw();
   }
-  // No arrival graphics or text over the aquarium.
+  // Bubbles and near, out-of-focus particles pass in front of the creatures.
+  if(AquariumEnvironment.foreground)AquariumEnvironment.foreground(width,height,millis()/1000);
+  // No arrival text over the aquarium; a release is marked only by rising bubbles.
 }
 
 class WishSwimmer {
@@ -115,9 +117,11 @@ class WishSwimmer {
     const drawWidth = drawHeight * ratio;
     const texture = AquariumEnvironment.texture(this.image);
     const angle = aquariumMotionReduced?0:Math.sin(age * .00035 + this.phase) * .018;
+    const look = underwaterLook(this.depth);
     if(pixelRenderer?.draw(texture,this.image.silhouette,{
       x:this.x,y:this.y,width:drawWidth,height:drawHeight,angle,time:age/1000,
-      phase:this.phase,alpha:arrivalAlpha,reducedMotion:aquariumMotionReduced
+      phase:this.phase,alpha:arrivalAlpha,reducedMotion:aquariumMotionReduced,
+      world:millis()/1000,...look
     }))return;
     const context = drawingContext;
     context.save();
@@ -126,9 +130,24 @@ class WishSwimmer {
     context.globalCompositeOperation = AquariumEnvironment.composite();
     context.translate(this.x, this.y);
     context.rotate(angle);
+    if('filter' in context)context.filter=`blur(${look.blur.toFixed(1)}px)`;
     AquariumSprite.draw(context,texture,this.image.silhouette,drawWidth,drawHeight,age/1000,this.phase,aquariumMotionReduced);
     context.restore();
   }
+}
+
+// Water softens everything: farther creatures blur and take on the water colour,
+// the nearest ones pass by out of focus. Display only; source PNGs are untouched.
+function underwaterLook(depth) {
+  const d = Math.min(1, Math.max(0, Number(depth) || 0));
+  const nearOutOfFocus = d < .12 ? (.12 - d) / .12 * 3 : 0;
+  return {
+    blur: .9 + d * 2.6 + nearOutOfFocus,
+    fog: d * .5,
+    fogColor: [.03, .33, .66],
+    wobble: 1.1 + (1 - d) * 1.3,
+    light: .9 * (1 - d * .6)
+  };
 }
 
 function seededNoise(seed, offset) {
@@ -142,6 +161,8 @@ function addCreature(data, isNew = true) {
   if (swimmers.length > 120) swimmers.splice(0, swimmers.length - 120);
   updateCount();
   if (isNew) {
+    const swimmer = swimmers[swimmers.length - 1];
+    if (AquariumEnvironment.burst) AquariumEnvironment.burst(swimmer.x, swimmer.y);
     showArrival(data.name || '새로운 소망생물');
   }
 }
