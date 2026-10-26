@@ -64,9 +64,16 @@ void main(){
  float opening=exp(-pow((q.x-.47)/.13,2.))*pow(q.y,4.);
  color+=vec3(.0,.30,.20)*opening;
  // Light dancing on the underside of the surface.
- float ripple=surface(vec2(q.x*5.2,q.y*1.4+time*.05));
- float sheet=pow(clamp(1.-abs(ripple-.5)*5.,0.,1.),2.)*smoothstep(.72,1.,q.y);
- color+=vec3(.02,.15,.17)*sheet+vec3(.0,.05,.07)*smoothstep(.8,1.,q.y);
+ // Two ripple layers drifting in different directions make the light under the
+ // surface weave and shimmer; brightest at the top, reaching a third of the way down.
+ float ripple=surface(vec2(q.x*5.2+time*.10,q.y*1.4+time*.16));
+ float ripple2=surface(vec2(q.x*3.4-time*.07,q.y*2.1-time*.11)+ripple*.6);
+ float lineA=pow(clamp(1.-abs(ripple-.5)*4.2,0.,1.),2.);
+ float lineB=pow(clamp(1.-abs(ripple2-.5)*4.8,0.,1.),2.);
+ float reach=smoothstep(.62,1.,q.y);
+ float pulse=.85+.15*sin(time*.6+q.x*4.);
+ color+=vec3(.04,.30,.32)*lineA*reach*pulse+vec3(.03,.20,.24)*lineB*reach*(1.15-pulse*.3)
+       +vec3(.0,.07,.09)*smoothstep(.78,1.,q.y);
  float columnX=.475+sin(time*.21+q.y*3.)*.009;
  float columnWidth=.025+(1.-q.y)*.058;
  float veil=exp(-pow((q.x-columnX)/columnWidth,2.));
