@@ -162,7 +162,16 @@ function texture(image){
 // shimmer as they turn, and leave a faint luminous wake that dissolves.
 // Additive light on its own canvas above the creatures. No images.
 let front=null,frontCtx=null,frontScale=1,lastFront=0,nextBreath=0;
-const bubbles=[],motes=[],glows=new Map();
+const bubbles=[],motes=[],glows=new Map(),dust=[];
+// A visitor's presence (touch, pointer, later a depth camera) gathers light.
+// Everything follows it slowly; nothing jumps to the hand.
+const presence={x:0,y:0,tx:0,ty:0,energy:0,target:0,last:-9,seen:false,trail:[],moved:0};
+function feel(x,y,strength){
+ if(!Number.isFinite(x)||!Number.isFinite(y))return;
+ if(!presence.seen){presence.x=x;presence.y=y;presence.seen=true;}
+ presence.moved+=Math.hypot(x-presence.tx,y-presence.ty);
+ presence.tx=x;presence.ty=y;presence.target=Math.min(1,Math.max(0,strength===undefined?1:strength));presence.last=lastFront;
+}
 let seedValue=7331;
 function rand(){seedValue=(seedValue*1664525+1013904223)>>>0;return seedValue/4294967296;}
 function ensureFront(w,h){
@@ -171,6 +180,12 @@ function ensureFront(w,h){
   Object.assign(front.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});
   document.querySelector('#canvas-host').appendChild(front);frontCtx=front.getContext('2d');
   for(let i=0;i<18;i++)motes.push({x:rand(),y:rand(),z:rand(),phase:rand()*6.28});
+  const stage=document.querySelector('#aquarium-stage');
+  if(stage){
+   const onPointer=e=>feel(e.clientX,e.clientY,e.pointerType==='mouse'&&!e.buttons?.55:1);
+   stage.addEventListener('pointerdown',onPointer,{passive:true});
+   stage.addEventListener('pointermove',onPointer,{passive:true});
+  }
  }
  frontScale=Math.min(window.devicePixelRatio||1,1.5);
  const cw=Math.round(w*frontScale),ch=Math.round(h*frontScale);
@@ -191,7 +206,58 @@ function lightAt(x,y,w,h,t){
  const cx=.475+Math.sin(t*.21+y/h*3)*.012;
  const shaft=Math.exp(-Math.pow((x/w-cx)/.13,2));
  const wide=Math.exp(-Math.pow((x/w-cx)/.38,2))*.35;
- return Math.min(1,(shaft+wide)*(.45+.55*(1-y/h))+.12);
+ const near=presence.energy?Math.exp(-(Math.pow(x-presence.x,2)+Math.pow(y-presence.y,2))/(2*Math.pow(150,2)))*presence.energy*.9:0;
+ return Math.min(1,(shaft+wide)*(.45+.55*(1-y/h))+.12+near);
+}
+// The visitor's light: a beam bending down from the surface to the hand, a soft
+// gathering glow, a slowly dissolving wake, and light dust that rises from it.
+function drawPresence(ctx,w,h,seconds,dt){
+ const p=presence;
+ if(seconds-p.last>1.4)p.target=0;
+ p.energy+=(p.target-p.energy)*Math.min(1,dt*(p.target>p.energy?.9:.45));
+ const follow=Math.min(1,dt*1.4);
+ p.x+=(p.tx-p.x)*follow;p.y+=(p.ty-p.y)*follow;
+ if(p.energy>.01)p.trail.push({x:p.x,y:p.y,t:seconds,e:p.energy});
+ while(p.trail.length&&seconds-p.trail[0].t>4.5)p.trail.shift();
+ // Light dust is shed only while the hand moves, in proportion to its motion.
+ const shed=Math.min(3,p.moved*.012);p.moved=0;
+ for(let i=0;i<shed&&dust.length<70;i++){
+  if(rand()>.45)continue;
+  dust.push({x:p.x+(rand()-.5)*70,y:p.y+(rand()-.5)*60,vx:(rand()-.5)*5,vy:-(2+rand()*6),age:0,life:4+rand()*4,r:.8+rand()*1.3,phase:rand()*6.28});
+ }
+ if(p.energy<.004&&!p.trail.length&&!dust.length)return;
+ const e=p.energy;
+ if(e>.01){
+  // Surface light leaning down toward the visitor.
+  const sx=w*.475+(p.x-w*.475)*.35;
+  const beam=ctx.createLinearGradient(sx,0,p.x,p.y);
+  beam.addColorStop(0,'rgba(90,230,240,'+(.07*e).toFixed(3)+')');beam.addColorStop(.7,'rgba(90,230,240,'+(.025*e).toFixed(3)+')');beam.addColorStop(1,'rgba(90,230,240,0)');
+  ctx.fillStyle=beam;
+  // Edges dissolve: the beam is soft-focus light, never a drawn shape.
+  if('filter' in ctx)ctx.filter='blur(28px)';
+  const top=70+90*e,bottom=30+40*e;
+  ctx.beginPath();ctx.moveTo(sx-top,-40);ctx.lineTo(sx+top,-40);ctx.lineTo(p.x+bottom,p.y);ctx.lineTo(p.x-bottom,p.y);ctx.closePath();ctx.fill();
+  if('filter' in ctx)ctx.filter='none';
+ }
+ // Wake: the path keeps a little light that fades over a few seconds.
+ for(let k=0;k<p.trail.length;k+=3){
+  const q=p.trail[k],a=1-(seconds-q.t)/4.5;
+  const g=glowSprite(34+50*(1-a));
+  ctx.globalAlpha=a*a*.05*q.e;ctx.drawImage(g,q.x-g.width/2,q.y-g.height/2);
+ }
+ if(e>.01){
+  const breathe=.85+.15*Math.sin(seconds*1.1);
+  const g=glowSprite(150*breathe);ctx.globalAlpha=.11*e;ctx.drawImage(g,p.x-g.width/2,p.y-g.height/2);
+  const c=glowSprite(60);ctx.globalAlpha=.07*e;ctx.drawImage(c,p.x-c.width/2,p.y-c.height/2);
+ }
+ for(let i=dust.length-1;i>=0;i--){
+  const d=dust[i];d.age+=dt;
+  if(d.age>d.life){dust.splice(i,1);continue;}
+  d.vx*=Math.pow(.6,dt);d.x+=d.vx*dt+Math.sin(d.age*.9+d.phase)*.15;d.y+=d.vy*dt;
+  const a=Math.sin(Math.PI*d.age/d.life);
+  const g=glowSprite(d.r*5);ctx.globalAlpha=a*.32;ctx.drawImage(g,d.x-g.width/2,d.y-g.height/2);
+ }
+ ctx.globalAlpha=1;
 }
 // depth z: 0 near the glass, 1 far away.
 function spawnBubble(x,y,z,options){
@@ -226,12 +292,18 @@ function foreground(w,h,seconds){
  // Rarely a single large bubble passes close to the glass: a slow, soft bokeh.
  if(rand()<dt*.012)spawnBubble(w*(.15+rand()*.7),h+60,0,{r:9+rand()*8,speed:.55});
  ctx.globalCompositeOperation='lighter';
+ drawPresence(ctx,w,h,seconds,dt);
  bubbles.sort((a,b)=>a.z-b.z);
  for(let i=bubbles.length-1;i>=0;i--){
   const b=bubbles[i];
   b.age+=dt;
   b.y-=b.speed*Math.min(1,.3+b.age*.6)*dt;
   b.drift*=Math.pow(.4,dt);b.x+=b.drift*dt;
+  if(presence.energy>.02){
+   // Near the visitor, bubbles slowly circle the light instead of being pushed.
+   const dx=b.x-presence.x,dy=b.y-presence.y,d2=dx*dx+dy*dy,reach=Math.exp(-d2/(2*170*170))*presence.energy;
+   if(reach>.01){const d=Math.sqrt(d2)+1;b.x+=(-dy/d*14-dx/d*3)*reach*dt;b.y+=(dx/d*6)*reach*dt;}
+  }
   const risen=Math.min(1,Math.max(0,(b.y0-b.y)/h));
   const x=b.x+Math.sin(b.age*b.swayFreq+b.phase)*b.sway*(.3+risen);
   if(b.y<-40){bubbles.splice(i,1);continue;}
@@ -281,7 +353,9 @@ function foreground(w,h,seconds){
  }
  ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
 }
-root.AquariumEnvironment={background,texture,foreground,burst,composite:()=> 'source-over'};
+// feel(x, y, strength 0–1): presence input in CSS pixels. Touch and pointer use it now;
+// a depth-camera bridge can call it with tracked hand positions later.
+root.AquariumEnvironment={background,texture,foreground,burst,feel,composite:()=> 'source-over'};
 })(window);
 
 // Original catalog scenery: these are not visitor releases and never enter server statistics.
