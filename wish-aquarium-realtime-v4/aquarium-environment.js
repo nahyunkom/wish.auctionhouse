@@ -156,11 +156,12 @@ function texture(image){
  }
  ctx.putImageData(data,0,0);tinted.set(image,copy);return copy;
 }
-// ---- Foreground: rising bubbles and near, out-of-focus particles ----
-// Drawn on its own canvas above the creatures. No images; every bubble is drawn.
-let front=null,frontCtx=null,frontScale=1,lastFront=0;
-const bubbles=[],motes=[],bubbleSprites=new Map();
-const vents=[{x:.17,rate:.3,drift:1.3},{x:.62,rate:.45,drift:2.1},{x:.88,rate:.22,drift:.7}];
+// ---- Foreground: bubbles and near, out-of-focus particles ----
+// Drawn on its own canvas above the creatures. No images: every bubble is drawn.
+// Bubbles sit at different depths like the creatures: far ones are tiny, faint and
+// soft; a rare near one is large and out of focus. They leave in short puffs.
+let front=null,frontCtx=null,frontScale=1,lastFront=0,nextPuff=0;
+const bubbles=[],motes=[],emitters=[],bubbleSprites=new Map();
 let seedValue=7331;
 function rand(){seedValue=(seedValue*1664525+1013904223)>>>0;return seedValue/4294967296;}
 function ensureFront(w,h){
@@ -168,32 +169,61 @@ function ensureFront(w,h){
   front=document.createElement('canvas');front.setAttribute('aria-hidden','true');front.className='water-foreground';
   Object.assign(front.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});
   document.querySelector('#canvas-host').appendChild(front);frontCtx=front.getContext('2d');
-  for(let i=0;i<26;i++)motes.push({x:rand(),y:rand(),z:rand(),phase:rand()*6.28});
+  for(let i=0;i<22;i++)motes.push({x:rand(),y:rand(),z:rand(),phase:rand()*6.28});
  }
  frontScale=Math.min(window.devicePixelRatio||1,1.5);
  const cw=Math.round(w*frontScale),ch=Math.round(h*frontScale);
  if(front.width!==cw||front.height!==ch){front.width=cw;front.height=ch;}
 }
-function bubbleSprite(radius){
- const key=Math.max(2,Math.round(radius*2));
+// A bubble is a thin lit rim with a clear middle, brighter on the side facing the light.
+function bubbleSprite(radius,blur){
+ const r=Math.max(1,Math.round(radius*2)/2),b=Math.round(blur*2)/2,key=r+'|'+b;
  if(bubbleSprites.has(key))return bubbleSprites.get(key);
- const size=key*2+4,c=document.createElement('canvas');c.width=c.height=size;
- const g=c.getContext('2d'),r=key,m=size/2;
- const body=g.createRadialGradient(m-r*.25,m-r*.3,r*.1,m,m,r);
- body.addColorStop(0,'rgba(235,255,255,.32)');body.addColorStop(.55,'rgba(150,230,245,.06)');
- body.addColorStop(.86,'rgba(190,245,255,.30)');body.addColorStop(1,'rgba(190,245,255,0)');
+ const pad=Math.ceil(b*2.5)+2,size=Math.ceil(r*2+pad*2),c=document.createElement('canvas');c.width=c.height=size;
+ const g=c.getContext('2d'),m=size/2;
+ if(b>0&&'filter' in g)g.filter='blur('+b+'px)';
+ const body=g.createRadialGradient(m,m,0,m,m,r);
+ if(r<2){
+  // Small bubbles read as soft points of light.
+  body.addColorStop(0,'rgba(235,255,255,.85)');body.addColorStop(.55,'rgba(200,245,255,.45)');body.addColorStop(1,'rgba(200,245,255,0)');
+ } else {
+  body.addColorStop(0,'rgba(170,235,245,.05)');body.addColorStop(.68,'rgba(170,235,245,.09)');
+  body.addColorStop(.88,'rgba(220,252,255,.7)');body.addColorStop(1,'rgba(220,252,255,0)');
+ }
  g.fillStyle=body;g.beginPath();g.arc(m,m,r,0,Math.PI*2);g.fill();
- g.fillStyle='rgba(255,255,255,.85)';g.beginPath();g.arc(m-r*.38,m-r*.4,Math.max(.6,r*.16),0,Math.PI*2);g.fill();
+ if(r>=2){
+  // Light from the surface: a soft crescent on top and a faint bounce underneath.
+  g.lineCap='round';
+  g.strokeStyle='rgba(240,255,255,.55)';g.lineWidth=Math.max(.6,r*.16);
+  g.beginPath();g.arc(m,m,r*.74,Math.PI*1.12,Math.PI*1.62);g.stroke();
+  g.strokeStyle='rgba(200,245,255,.16)';g.lineWidth=Math.max(.5,r*.1);
+  g.beginPath();g.arc(m,m,r*.78,Math.PI*.2,Math.PI*.7);g.stroke();
+ }
  bubbleSprites.set(key,c);return c;
 }
-function spawnBubble(x,y,size,spread){
- if(bubbles.length>260)return;
- bubbles.push({x,y,r:size,vy:12+size*8+rand()*16,phase:rand()*6.28,wob:5+rand()*12,freq:1.2+rand()*1.8,spread:spread||0,born:lastFront,y0:y});
+// depth: 0 = near the glass, 1 = far. Size, blur and brightness follow it.
+function spawnBubble(x,y,depth,spread,size){
+ if(bubbles.length>140)return;
+ const z=Math.min(1,Math.max(0,depth));
+ const r=size||((1.1+rand()*rand()*4.2)*(1.45-z*.85));
+ bubbles.push({
+  x,y,y0:y,z,r,
+  speed:(10+r*7)*(1.25-z*.55),       // bigger bubbles rise faster; far ones look slower
+  age:0,phase:rand()*6.28,
+  zig:(1.5+rand()*3)*(r>3?1.8:1),zigFreq:2+rand()*3,
+  drift:spread||0,
+  squash:r>3?.08+rand()*.08:0
+ });
 }
-// A release is marked by a soft column of bubbles, never by text.
+// A release is marked by a soft scatter of bubbles from the creature, never by text.
 function burst(x,y){
  if(motion.matches||!Number.isFinite(x)||!Number.isFinite(y))return;
- for(let i=0;i<34;i++)spawnBubble(x+(rand()-.5)*60,y+(rand()-.2)*40,1.2+rand()*4.2,(rand()-.5)*26);
+ for(let i=0;i<16;i++)spawnBubble(x+(rand()-.5)*50,y+(rand()-.3)*30,.2+rand()*.5,(rand()-.5)*30);
+}
+function puff(w,h){
+ // Somewhere below the frame a source lets bubbles go for a second or two,
+ // at uneven intervals, so they rise as loose, broken chains.
+ emitters.push({x:w*(.06+rand()*.88),z:.2+rand()*.7,until:lastFront+.8+rand()*2.2,next:lastFront});
 }
 function foreground(w,h,seconds){
  if(!document.querySelector('#canvas-host'))return;
@@ -201,29 +231,36 @@ function foreground(w,h,seconds){
  const ctx=frontCtx;ctx.setTransform(frontScale,0,0,frontScale,0,0);ctx.clearRect(0,0,w,h);
  if(motion.matches){lastFront=seconds;return;}
  const dt=lastFront?Math.min(.1,Math.max(0,seconds-lastFront)):0;lastFront=seconds;
- // Vents release irregular strings of bubbles from below the frame.
- for(const v of vents){
-  if(rand()<v.rate*dt*(.6+.8*Math.max(0,Math.sin(seconds*.31+v.x*9.)))*6){
-   // Bubbles leave in small irregular clusters from a source that slowly wanders.
-   const n=1+Math.floor(rand()*rand()*6);
-   const sx=w*(v.x+Math.sin(seconds*.05*v.drift+v.x*20.)*.03);
-   for(let i=0;i<n;i++)spawnBubble(sx+(rand()-.5)*26,h+12+i*(6+rand()*14),.7+rand()*rand()*3.4,(rand()-.5)*10);
-  }
+ if(!nextPuff)nextPuff=seconds+1+rand()*2;
+ if(seconds>=nextPuff){puff(w,h);nextPuff=seconds+1.2+rand()*rand()*6;}
+ for(let i=emitters.length-1;i>=0;i--){
+  const e=emitters[i];
+  if(seconds>e.until){emitters.splice(i,1);continue;}
+  if(seconds>=e.next){spawnBubble(e.x+(rand()-.5)*10,h+8,e.z+(rand()-.5)*.08,0);e.next=seconds+.06+rand()*rand()*.45;}
  }
- // Rare large bubble passing close to the glass, out of focus.
- if(rand()<dt*.05)spawnBubble(w*(.1+rand()*.8),h+40,7+rand()*6,0);
+ // Now and then a single tiny bubble appears mid-water, far away.
+ if(rand()<dt*.35)spawnBubble(w*rand(),h*(.55+rand()*.45),.75+rand()*.25,0);
+ // Rarely, one large bubble drifts up close to the glass, out of focus.
+ if(rand()<dt*.018)spawnBubble(w*(.08+rand()*.84),h+40,0,0,7+rand()*5);
+ bubbles.sort((a,b)=>a.z-b.z); // looped from the end: far bubbles first, near ones on top
  for(let i=bubbles.length-1;i>=0;i--){
   const b=bubbles[i];
-  b.y-=b.vy*dt;b.spread*=Math.pow(.4,dt);b.x+=b.spread*dt;
-  const risen=Math.min(1,Math.max(0,(b.y0-b.y)/h));
-  const x=b.x+Math.sin(seconds*b.freq+b.phase)*b.wob*(.25+risen*.9)*(.6+b.r*.1);
+  b.age+=dt;
+  const accel=Math.min(1,.35+b.age*.9);   // leaves slowly, then reaches its rising speed
+  b.y-=b.speed*accel*dt;
+  b.drift*=Math.pow(.35,dt);b.x+=b.drift*dt;
   if(b.y<-30){bubbles.splice(i,1);continue;}
-  const top=Math.min(1,Math.max(0,b.y/(h*.18)));
-  const sprite=bubbleSprite(b.r*(1+(1-b.y/h)*.25));
-  ctx.globalAlpha=(b.r>6?.38:.85)*top;
-  if(b.r>6&&'filter' in ctx)ctx.filter='blur(2.5px)';
-  ctx.drawImage(sprite,x-sprite.width/2,b.y-sprite.height/2);
-  if(b.r>6&&'filter' in ctx)ctx.filter='none';
+  const risen=Math.min(1,Math.max(0,(b.y0-b.y)/h));
+  const x=b.x+Math.sin(b.age*b.zigFreq+b.phase)*b.zig*(.35+risen*.65);
+  const blur=b.z>.55?.4+(b.z-.55)*1.3:b.z<.15?(.15-b.z)/.15*3.2:.2;
+  const sprite=bubbleSprite(b.r*(1+risen*.15),blur);
+  const wob=b.squash?Math.sin(b.age*7+b.phase)*b.squash:0;
+  const sx=1+b.squash+wob,sy=1-b.squash-wob*.6;
+  const fadeTop=Math.min(1,Math.max(0,b.y/(h*.2))),fadeIn=Math.min(1,b.age*2.5);
+  ctx.globalAlpha=(1-b.z*.45)*fadeTop*fadeIn*(b.r>6?.6:1);
+  const tilt=Math.sin(b.age*1.3+b.phase)*.25;
+  ctx.save();ctx.translate(x,b.y);ctx.rotate(tilt);ctx.scale(sx,sy);
+  ctx.drawImage(sprite,-sprite.width/2,-sprite.height/2);ctx.restore();
  }
  // Near particles drifting past the lens: large, soft and slow.
  for(const m of motes){
@@ -231,7 +268,7 @@ function foreground(w,h,seconds){
   if(m.y<-.05){m.y=1.05;m.x=rand();}
   const r=2+m.z*5,px=(m.x%1+1)%1*w,py=m.y*h;
   const g=ctx.createRadialGradient(px,py,0,px,py,r);
-  g.addColorStop(0,'rgba(190,240,250,'+(.10+m.z*.10)+')');g.addColorStop(1,'rgba(190,240,250,0)');
+  g.addColorStop(0,'rgba(190,240,250,'+(.08+m.z*.09)+')');g.addColorStop(1,'rgba(190,240,250,0)');
   ctx.globalAlpha=1;ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill();
  }
  ctx.globalAlpha=1;
