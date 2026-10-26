@@ -98,11 +98,22 @@ void main(){
  float pulse=.9+.1*sin(time*.32+q.x*3.);
  color+=vec3(.025,.19,.21)*lineA*reach*pulse+vec3(.02,.12,.15)*lineB*reach
        +vec3(.0,.06,.08)*smoothstep(.8,1.,q.y);
- float columnX=.475+sin(time*.21+q.y*3.)*.009;
- float columnWidth=.025+(1.-q.y)*.058;
+ // The central column: wider and brighter, its edges rippling like light through
+ // a moving surface, with a white core where the bubble curtain rises.
+ float columnX=.475+sin(time*.21+q.y*3.)*.009+sin(q.y*9.+time*.55)*.011+sin(q.y*23.-time*.85)*.004;
+ float columnWidth=.034+(1.-q.y)*.07;
  float veil=exp(-pow((q.x-columnX)/columnWidth,2.));
- float filament=.62+.38*surface(vec2(q.x*75.,q.y*.8));
- color+=vec3(.0,.19,.14)*veil*filament*(.45+.55*q.y);
+ float filament=.62+.38*surface(vec2(q.x*75.,q.y*.8-time*.04));
+ color+=vec3(.0,.26,.21)*veil*filament*(.5+.5*q.y);
+ color+=vec3(.12,.34,.33)*pow(veil,3.)*filament*(.35+.65*q.y);
+ // Fine vertical light streaks drifting through the whole water.
+ float streak=pow(surface(vec2(q.x*20.+sin(time*.07)*1.5,q.y*.35+time*.02)),4.);
+ color+=vec3(.0,.04,.05)*streak*(.3+.7*q.y);
+ // A lit floor below the column, shimmering with caustics, like the sand in a tank.
+ float floorBand=smoothstep(.14,.0,q.y);
+ float floorLight=exp(-pow((q.x-.475)/.26,2.))*.85+.15;
+ float sand=.55+.45*pow(clamp(1.-abs(surface(vec2(q.x*16.+time*.08,q.y*6.-time*.05))-.5)*4.,0.,1.),2.);
+ color+=vec3(.05,.30,.32)*floorBand*floorLight*sand;
  // Where a visitor touches the water, the light in it stirs: woven caustics brighten
  // and slowly spread in soft rings, then settle again. No shape follows the hand.
  if(presence.z>.002){
@@ -224,7 +235,7 @@ function texture(image){
 // shimmer as they turn, and leave a faint luminous wake that dissolves.
 // Additive light on its own canvas above the creatures. No images.
 let front=null,frontCtx=null,frontScale=1,lastFront=0,nextBreath=0;
-const bubbles=[],motes=[],glows=new Map(),dust=[];
+const bubbles=[],motes=[],glows=new Map(),dust=[],curtain=[];
 // A visitor's presence (touch, pointer, later a depth camera) gathers light.
 // Everything follows it slowly; nothing jumps to the hand.
 const presence={x:0,y:0,tx:0,ty:0,energy:0,target:0,last:-9,seen:false,trail:[],moved:0,sinceDrop:0};
@@ -294,6 +305,34 @@ function updatePresence(seconds,dt){
  const follow=Math.min(1,dt*1.1);
  p.x+=(p.tx-p.x)*follow;p.y+=(p.ty-p.y)*follow;p.moved=0;
 }
+// The bubble curtain: a dense, swaying plume of tiny bright bubbles rising up the
+// central light column from the floor, as in a large aquarium tank.
+function curtainX(y,w,h,t){
+ const v=y/h;
+ return w*(.475+Math.sin(t*.21+(1-v)*3)*.009+Math.sin((1-v)*9+t*.55)*.011+Math.sin(v*6+t*.5)*.018*(1-v));
+}
+function drawCurtain(ctx,w,h,seconds,dt){
+ const rate=Math.min(260,(w*h)/4500);
+ const spawn=rate*dt;
+ for(let i=0;i<spawn&&curtain.length<320;i++){
+  if(rand()>spawn-i)break;
+  const g=(rand()+rand()+rand()-1.5)/1.5;          // roughly gaussian across the column
+  curtain.push({off:g,y:h+4+rand()*20,vy:70+rand()*110,r:.5+rand()*rand()*2.1,ph:rand()*6.28,wob:2+rand()*6,age:0});
+ }
+ for(let i=curtain.length-1;i>=0;i--){
+  const b=curtain[i];b.age+=dt;b.y-=b.vy*dt*Math.min(1,.4+b.age*1.2);
+  if(b.y<-10){curtain.splice(i,1);continue;}
+  const v=b.y/h,width=w*(.03+(v)*.035);       // the plume narrows as it rises into the light
+  const x=curtainX(b.y,w,h,seconds)+b.off*width+Math.sin(b.age*7+b.ph)*b.wob*.4;
+  const glint=.55+.45*Math.pow(.5+.5*Math.sin(b.age*11+b.ph),3);
+  const fade=Math.min(1,b.age*3)*Math.min(1,b.y/(h*.12));
+  const core=Math.exp(-b.off*b.off*1.8);
+  const g=glowSprite(b.r*(3.2+core*2));
+  ctx.globalAlpha=Math.min(1,(.35+.6*core)*glint*fade);
+  ctx.drawImage(g,x-g.width/2,b.y-g.height/2);
+ }
+ ctx.globalAlpha=1;
+}
 // depth z: 0 near the glass, 1 far away.
 function spawnBubble(x,y,z,options){
  if(bubbles.length>70)return;
@@ -328,6 +367,7 @@ function foreground(w,h,seconds){
  if(rand()<dt*.012)spawnBubble(w*(.15+rand()*.7),h+60,0,{r:9+rand()*8,speed:.55});
  ctx.globalCompositeOperation='lighter';
  updatePresence(seconds,dt);
+ drawCurtain(ctx,w,h,seconds,dt);
  bubbles.sort((a,b)=>a.z-b.z);
  for(let i=bubbles.length-1;i>=0;i--){
   const b=bubbles[i];
