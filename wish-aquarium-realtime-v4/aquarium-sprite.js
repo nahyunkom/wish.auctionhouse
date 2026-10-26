@@ -71,7 +71,9 @@
     const distance=position-center;
     return Math.sin(time*1.15-distance*4.2+phase)*distance*amplitude;
   }
-  function draw(context, source, info, width, height, time, phase) {
+  function draw(context, source, info, width, height, time, phase, reducedMotion = false) {
+    if(!info||info.empty)return;
+    if(reducedMotion){const b=info.bounds;context.drawImage(source,b.x,b.y,b.width,b.height,-width/2,-height/2,width,height);return;}
     const b=info.bounds, horizontal=b.width>b.height*1.25;
     const center=horizontal?(info.center.x-b.x)/b.width:(info.center.y-b.y)/b.height;
     const extent=horizontal?width:height;
@@ -93,5 +95,129 @@
       context.restore();
     }
   }
-  return {mask,bend,draw};
+
+  // Fragment-level displacement, in CSS pixels. Source PNGs and mask pixels stay intact.
+  const vertexSource = `
+    attribute vec2 aCorner;
+    uniform vec2 uViewport,uPosition,uSize;
+    uniform float uAngle;
+    varying vec2 vLocal;
+    void main(){
+      vLocal=(aCorner-.5)*(uSize+vec2(10.));
+      float c=cos(uAngle),s=sin(uAngle);
+      vec2 p=uPosition+vec2(c*vLocal.x-s*vLocal.y,s*vLocal.x+c*vLocal.y);
+      gl_Position=vec4(p.x/uViewport.x*2.-1.,1.-p.y/uViewport.y*2.,0.,1.);
+    }`;
+  const fragmentSource = `
+    precision mediump float;
+    uniform sampler2D uImage;
+    uniform vec4 uCrop;
+    uniform vec2 uSize,uCenter;
+    uniform float uTime,uPhase,uGain,uAlpha;
+    varying vec2 vLocal;
+    void main(){
+      vec2 q=vLocal/uSize+.5;
+      vec2 d=q-uCenter;
+      float peripheral=smoothstep(.05,.55,length(d));
+      float amp=min(2.6,max(.65,min(uSize.x,uSize.y)*.008))*uGain;
+      // Continuous, overlapping currents, without discrete pixel blocks or flashing.
+      vec2 wave=vec2(
+        sin(q.y*12.-uTime*.83+uPhase)*.52+sin(q.x*19.+q.y*9.+uTime*.47+uPhase*1.7)*.24,
+        sin(q.x*11.+uTime*.69+uPhase*1.3)*.45+sin(q.y*17.-q.x*7.-uTime*.39+uPhase)*.22
+      );
+      vec2 breath=d*sin(uTime*.92+uPhase)*min(uSize.x,uSize.y)*.004;
+      vec2 offset=(wave*(.28+.72*peripheral)*amp+breath*uGain);
+      vec2 uv=q-offset/uSize;
+      if(uv.x<0.||uv.y<0.||uv.x>1.||uv.y>1.)discard;
+      vec4 color=texture2D(uImage,uCrop.xy+uv*uCrop.zw);
+      float alpha=color.a*uAlpha;
+      gl_FragColor=vec4(color.rgb*alpha,alpha);
+    }`;
+  function createRenderer(host) {
+    if(!host || typeof document==='undefined')return null;
+    const canvas=document.createElement('canvas');
+    canvas.setAttribute('aria-hidden','true');
+    canvas.className='creature-pixel-layer';
+    Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});
+    let gl;
+    try {gl=canvas.getContext('webgl',{alpha:true,premultipliedAlpha:true,antialias:false,depth:false,stencil:false,powerPreference:'low-power'});}catch(_){return null;}
+    if(!gl)return null;
+    let program,buffer,uniforms={},textures=new Map(),ready=false,frame=0,uploads=0,viewWidth=1,viewHeight=1;
+    function initialize(){
+      const compile=(type,source)=>{
+        const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);
+        if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)){gl.deleteShader(shader);return null;}
+        return shader;
+      };
+      const precision=gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER,gl.HIGH_FLOAT);
+      const fragment=precision&&precision.precision>0?fragmentSource.replace('precision mediump float;','precision highp float;'):fragmentSource;
+      const vs=compile(gl.VERTEX_SHADER,vertexSource),fs=compile(gl.FRAGMENT_SHADER,fragment);
+      if(!vs||!fs){if(vs)gl.deleteShader(vs);if(fs)gl.deleteShader(fs);return false;}
+      program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);
+      gl.deleteShader(vs);gl.deleteShader(fs);
+      if(!gl.getProgramParameter(program,gl.LINK_STATUS)){gl.deleteProgram(program);program=null;return false;}
+      gl.useProgram(program);
+      buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,0,1,1,0,1,1]),gl.STATIC_DRAW);
+      const corner=gl.getAttribLocation(program,'aCorner');
+      gl.enableVertexAttribArray(corner);gl.vertexAttribPointer(corner,2,gl.FLOAT,false,0,0);
+      for(const name of ['uViewport','uPosition','uSize','uAngle','uImage','uCrop','uCenter','uTime','uPhase','uGain','uAlpha'])uniforms[name]=gl.getUniformLocation(program,name);
+      gl.activeTexture(gl.TEXTURE0);gl.uniform1i(uniforms.uImage,0);
+      gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+      gl.clearColor(0,0,0,0);return true;
+    }
+    ready=initialize();
+    if(!ready)return null;
+    host.appendChild(canvas);
+    canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();ready=false;canvas.style.visibility='hidden';});
+    canvas.addEventListener('webglcontextrestored',()=>{textures.clear();ready=initialize();canvas.style.visibility=ready?'visible':'hidden';});
+    function begin(width,height,density,composite){
+      if(!ready)return false;
+      viewWidth=Math.max(1,width);viewHeight=Math.max(1,height);frame++;uploads=0;
+      const w=Math.max(1,Math.round(viewWidth*density)),h=Math.max(1,Math.round(viewHeight*density));
+      if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+      canvas.style.mixBlendMode=composite==='screen'?'screen':'normal';
+      gl.viewport(0,0,w,h);gl.useProgram(program);
+      gl.uniform2f(uniforms.uViewport,viewWidth,viewHeight);gl.clear(gl.COLOR_BUFFER_BIT);
+      return true;
+    }
+    function textureFor(source){
+      let cached=textures.get(source);
+      if(cached){cached.used=frame;return cached.texture;}
+      // Upload at most two display textures per frame. Other creatures use the Canvas fallback.
+      if(uploads>=2)return null;
+      if(textures.size>=128){
+        let oldestSource,oldest=Infinity;
+        for(const [key,value] of textures)if(value.used<oldest){oldest=value.used;oldestSource=key;}
+        gl.deleteTexture(textures.get(oldestSource).texture);textures.delete(oldestSource);
+      }
+      const texture=gl.createTexture();if(!texture)return null;
+      try {
+        gl.bindTexture(gl.TEXTURE_2D,texture);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,source);
+      }catch(_){gl.deleteTexture(texture);return null;}
+      uploads++;textures.set(source,{texture,used:frame});return texture;
+    }
+    function drawCreature(source,info,options){
+      if(!ready||!info||info.empty||!(options.width>0)||!(options.height>0))return false;
+      const texture=textureFor(source);if(!texture)return false;
+      const b=info.bounds;
+      gl.bindTexture(gl.TEXTURE_2D,texture);
+      gl.uniform2f(uniforms.uPosition,options.x,options.y);
+      gl.uniform2f(uniforms.uSize,options.width,options.height);
+      gl.uniform1f(uniforms.uAngle,options.angle||0);
+      gl.uniform4f(uniforms.uCrop,b.x/source.width,b.y/source.height,b.width/source.width,b.height/source.height);
+      gl.uniform2f(uniforms.uCenter,clamp((info.center.x-b.x)/b.width,0,1),clamp((info.center.y-b.y)/b.height,0,1));
+      gl.uniform1f(uniforms.uTime,(options.time||0)%(200*Math.PI));
+      gl.uniform1f(uniforms.uPhase,options.phase||0);gl.uniform1f(uniforms.uGain,options.reducedMotion?0:1);
+      gl.uniform1f(uniforms.uAlpha,options.alpha===undefined?1:clamp(options.alpha,0,1));
+      gl.drawArrays(gl.TRIANGLES,0,6);return true;
+    }
+    return {begin,draw:drawCreature,get available(){return ready;},get textureCount(){return textures.size;}};
+  }
+
+  return {mask,bend,draw,createRenderer};
 });

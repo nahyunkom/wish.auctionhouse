@@ -8,6 +8,10 @@ let socket = null;
 let arrivalTimer = null;
 let firstFrame = true;
 let backgroundParticles = [];
+let pixelRenderer = null;
+const aquariumMotionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+let aquariumMotionReduced = aquariumMotionPreference.matches;
+aquariumMotionPreference.addEventListener('change', event => { aquariumMotionReduced=event.matches; });
 
 function preload() {}
 
@@ -46,6 +50,7 @@ function pumpTextureQueue() {
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
   canvas.parent('canvas-host');
+  pixelRenderer = AquariumSprite.createRenderer(document.querySelector('#canvas-host'));
   pixelDensity(Math.min(window.devicePixelRatio || 1, 1.75));
   frameRate(60);
   imageMode(CENTER);
@@ -59,6 +64,7 @@ function draw() {
   AquariumEnvironment.background(drawingContext,width,height,millis()/1000);
   firstFrame = false;
   drawBackgroundParticles();
+  if(pixelRenderer)pixelRenderer.begin(width,height,Math.min(window.devicePixelRatio||1,1.75),AquariumEnvironment.composite());
   for (const swimmer of swimmers) {
     swimmer.update();
     swimmer.draw();
@@ -116,6 +122,7 @@ class WishSwimmer {
     const now = millis();
     const seconds = Math.min(.1, Math.max(0, now - this.lastUpdateAt) / 1000);
     this.lastUpdateAt = now;
+    if(aquariumMotionReduced)return;
     this.x += this.speed * seconds;
     this.y = this.baseY + Math.sin((now - this.bornAt) * .00045 + this.phase) * this.bobAmount;
     const margin = this.baseHeight * 1.2;
@@ -131,14 +138,20 @@ class WishSwimmer {
     const ratio=bounds.width/bounds.height;
     const drawHeight = Math.min(this.baseHeight,windowWidth*.30/ratio);
     const drawWidth = drawHeight * ratio;
+    const texture = AquariumEnvironment.texture(this.image);
+    const angle = aquariumMotionReduced?0:Math.sin(age * .00035 + this.phase) * .018;
+    if(pixelRenderer?.draw(texture,this.image.silhouette,{
+      x:this.x,y:this.y,width:drawWidth,height:drawHeight,angle,time:age/1000,
+      phase:this.phase,alpha:arrivalAlpha,reducedMotion:aquariumMotionReduced
+    }))return;
     const context = drawingContext;
     context.save();
     context.globalAlpha = arrivalAlpha;
     context.globalCompositeOperation = 'source-over';
     context.globalCompositeOperation = AquariumEnvironment.composite();
     context.translate(this.x, this.y);
-    context.rotate(Math.sin(age * .00035 + this.phase) * .018);
-    AquariumSprite.draw(context,AquariumEnvironment.texture(this.image),this.image.silhouette,drawWidth,drawHeight,age/1000,this.phase);
+    context.rotate(angle);
+    AquariumSprite.draw(context,texture,this.image.silhouette,drawWidth,drawHeight,age/1000,this.phase,aquariumMotionReduced);
     context.restore();
   }
 }
@@ -248,4 +261,3 @@ document.querySelector('#fullscreen-button').addEventListener('click', toggleFul
 document.addEventListener('fullscreenchange', () => {
   document.querySelector('#fullscreen-button').textContent = document.fullscreenElement ? '전체 화면 닫기' : '전체 화면';
 });
-
