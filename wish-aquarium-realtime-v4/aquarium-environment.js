@@ -37,6 +37,7 @@ varying vec2 uv;
 uniform vec2 resolution;
 uniform vec2 pointer;
 uniform float time;
+uniform vec3 presence; // x, y in uv (y up), strength
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){
  vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -101,6 +102,19 @@ void main(){
  float veil=exp(-pow((q.x-columnX)/columnWidth,2.));
  float filament=.62+.38*surface(vec2(q.x*75.,q.y*.8));
  color+=vec3(.0,.19,.14)*veil*filament*(.45+.55*q.y);
+ // Where a visitor touches the water, the light in it stirs: woven caustics brighten
+ // and slowly spread in soft rings, then settle again. No shape follows the hand.
+ if(presence.z>.002){
+  vec2 d=(q-presence.xy)*vec2(aspect,1.);
+  float r=length(d);
+  float fall=exp(-r*r/(2.*.2*.2));
+  float rings=.65+.35*sin(r*30.-time*1.3);
+  vec2 sp=q*vec2(aspect,1.);
+  float c1=surface(sp*3.0+vec2(time*.14,-time*.10)+d*1.1);
+  float c2=surface(sp*4.6-vec2(time*.12,time*.08)-d*.8);
+  float weave=pow(clamp(1.-abs(c1-c2)*2.3,0.,1.),2.);
+  color+=(vec3(.035,.27,.29)*weave*rings+vec3(.012,.09,.10))*fall*presence.z;
+ }
  color*=vec3(1.0,1.19,1.065);
  color+=vec3(.004,.018,.018)*(1.-q.y);
  color*=.97+.025*noise(vec2(q.x*6.,q.y*3.)+time*.009);
@@ -137,7 +151,7 @@ function build(){
  const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
  const location=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,2,gl.FLOAT,false,0,0);
- uniforms={};for(const name of ['resolution','time','pointer'])uniforms[name]=gl.getUniformLocation(program,name);
+ uniforms={};for(const name of ['resolution','time','pointer','presence'])uniforms[name]=gl.getUniformLocation(program,name);
 }
 function fallback(ctx,w,h,t){
  const fill=ctx.createLinearGradient(0,0,w,h);fill.addColorStop(0,'#087cd0');fill.addColorStop(.52,'#096ab6');fill.addColorStop(1,'#095aa3');
@@ -159,6 +173,7 @@ function background(ctx,w,h,seconds){
   const rw=Math.max(1,Math.round(w*scale)),rh=Math.max(1,Math.round(h*scale));
   if(canvas.width!==rw||canvas.height!==rh){canvas.width=rw;canvas.height=rh;gl.viewport(0,0,rw,rh);}
   gl.useProgram(program);gl.uniform2f(uniforms.resolution,rw,rh);gl.uniform1f(uniforms.time,t);gl.uniform2f(uniforms.pointer,pointer.x,pointer.y);
+  gl.uniform3f(uniforms.presence,presence.x/Math.max(1,w),1-presence.y/Math.max(1,h),motion.matches?0:presence.energy);
   gl.drawArrays(gl.TRIANGLES,0,6);
   if(seconds>lastTime&&lastTime){const dt=seconds-lastTime;if(++frames>90&&dt>.045&&quality>.38){quality=Math.max(.38,quality-.05);frames=0;}}
   lastTime=seconds;
@@ -239,55 +254,15 @@ function lightAt(x,y,w,h,t){
  const near=presence.energy?Math.exp(-(Math.pow(x-presence.x,2)+Math.pow(y-presence.y,2))/(2*Math.pow(150,2)))*presence.energy*1.3:0;
  return Math.min(1,(shaft+wide)*(.45+.55*(1-y/h))+.12+near);
 }
-// The visitor's light: a beam bending down from the surface to the hand, a soft
-// gathering glow, a slowly dissolving wake, and light dust that rises from it.
-function drawPresence(ctx,w,h,seconds,dt){
+// The visitor's presence is felt in the water, not drawn: this only eases its
+// position and strength. The water shader and creature shader read it.
+function updatePresence(seconds,dt){
  const p=presence;
- if(seconds-p.last>1.4)p.target=0;
- p.energy+=(p.target-p.energy)*Math.min(1,dt*(p.target>p.energy?.9:.45));
- const follow=Math.min(1,dt*1.4);
- p.x+=(p.tx-p.x)*follow;p.y+=(p.ty-p.y)*follow;
- if(p.energy>.01)p.trail.push({x:p.x,y:p.y,t:seconds,e:p.energy});
- while(p.trail.length&&seconds-p.trail[0].t>4.5)p.trail.shift();
- // Light dust is shed only while the hand moves, in proportion to its motion.
- const shed=Math.min(3,p.moved*.012);p.moved=0;
- for(let i=0;i<shed&&dust.length<70;i++){
-  if(rand()>.45)continue;
-  dust.push({x:p.x+(rand()-.5)*70,y:p.y+(rand()-.5)*60,vx:(rand()-.5)*5,vy:-(2+rand()*6),age:0,life:4+rand()*4,r:.8+rand()*1.3,phase:rand()*6.28});
- }
- if(p.energy<.004&&!p.trail.length&&!dust.length)return;
- const e=p.energy;
- if(e>.01){
-  // Surface light leaning down toward the visitor.
-  const sx=w*.475+(p.x-w*.475)*.35;
-  const beam=ctx.createLinearGradient(sx,0,p.x,p.y);
-  beam.addColorStop(0,'rgba(90,230,240,'+(.07*e).toFixed(3)+')');beam.addColorStop(.7,'rgba(90,230,240,'+(.025*e).toFixed(3)+')');beam.addColorStop(1,'rgba(90,230,240,0)');
-  ctx.fillStyle=beam;
-  // Edges dissolve: the beam is soft-focus light, never a drawn shape.
-  if('filter' in ctx)ctx.filter='blur(28px)';
-  const top=70+90*e,bottom=30+40*e;
-  ctx.beginPath();ctx.moveTo(sx-top,-40);ctx.lineTo(sx+top,-40);ctx.lineTo(p.x+bottom,p.y);ctx.lineTo(p.x-bottom,p.y);ctx.closePath();ctx.fill();
-  if('filter' in ctx)ctx.filter='none';
- }
- // Wake: the path keeps a little light that fades over a few seconds.
- for(let k=0;k<p.trail.length;k+=3){
-  const q=p.trail[k],a=1-(seconds-q.t)/4.5;
-  const g=glowSprite(34+50*(1-a));
-  ctx.globalAlpha=a*a*.05*q.e;ctx.drawImage(g,q.x-g.width/2,q.y-g.height/2);
- }
- if(e>.01){
-  const breathe=.85+.15*Math.sin(seconds*1.1);
-  const g=glowSprite(150*breathe);ctx.globalAlpha=.11*e;ctx.drawImage(g,p.x-g.width/2,p.y-g.height/2);
-  const c=glowSprite(60);ctx.globalAlpha=.07*e;ctx.drawImage(c,p.x-c.width/2,p.y-c.height/2);
- }
- for(let i=dust.length-1;i>=0;i--){
-  const d=dust[i];d.age+=dt;
-  if(d.age>d.life){dust.splice(i,1);continue;}
-  d.vx*=Math.pow(.6,dt);d.x+=d.vx*dt+Math.sin(d.age*.9+d.phase)*.15;d.y+=d.vy*dt;
-  const a=Math.sin(Math.PI*d.age/d.life);
-  const g=glowSprite(d.r*5);ctx.globalAlpha=a*.32;ctx.drawImage(g,d.x-g.width/2,d.y-g.height/2);
- }
- ctx.globalAlpha=1;
+ if(seconds-p.last>1.6)p.target=0;
+ // Rises over about a second, settles over three.
+ p.energy+=(p.target-p.energy)*Math.min(1,dt*(p.target>p.energy?1:.33));
+ const follow=Math.min(1,dt*1.1);
+ p.x+=(p.tx-p.x)*follow;p.y+=(p.ty-p.y)*follow;p.moved=0;
 }
 // depth z: 0 near the glass, 1 far away.
 function spawnBubble(x,y,z,options){
@@ -322,18 +297,14 @@ function foreground(w,h,seconds){
  // Rarely a single large bubble passes close to the glass: a slow, soft bokeh.
  if(rand()<dt*.012)spawnBubble(w*(.15+rand()*.7),h+60,0,{r:9+rand()*8,speed:.55});
  ctx.globalCompositeOperation='lighter';
- drawPresence(ctx,w,h,seconds,dt);
+ updatePresence(seconds,dt);
  bubbles.sort((a,b)=>a.z-b.z);
  for(let i=bubbles.length-1;i>=0;i--){
   const b=bubbles[i];
   b.age+=dt;
   b.y-=b.speed*Math.min(1,.3+b.age*.6)*dt;
   b.drift*=Math.pow(.4,dt);b.x+=b.drift*dt;
-  if(presence.energy>.02){
-   // Near the visitor, bubbles slowly circle the light instead of being pushed.
-   const dx=b.x-presence.x,dy=b.y-presence.y,d2=dx*dx+dy*dy,reach=Math.exp(-d2/(2*170*170))*presence.energy;
-   if(reach>.01){const d=Math.sqrt(d2)+1;b.x+=(-dy/d*14-dx/d*3)*reach*dt;b.y+=(dx/d*6)*reach*dt;}
-  }
+
   const risen=Math.min(1,Math.max(0,(b.y0-b.y)/h));
   const x=b.x+Math.sin(b.age*b.swayFreq+b.phase)*b.sway*(.3+risen);
   if(b.y<-40){bubbles.splice(i,1);continue;}

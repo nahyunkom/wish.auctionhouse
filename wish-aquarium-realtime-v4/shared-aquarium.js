@@ -131,9 +131,10 @@ class WishSwimmer {
     const texture = AquariumEnvironment.texture(this.image);
     const angle = aquariumMotionReduced?0:Math.sin(age * .00035 + this.phase) * .018;
     const look = underwaterLook(this.depth);
-    // Creatures the visitor's light passes over come out of the haze and glow.
+    // Near a visitor's touch the water in front of a creature stirs: its outline
+    // ripples more and the moving light on it brightens a little.
     const lit = AquariumEnvironment.presenceLight ? AquariumEnvironment.presenceLight(this.x, this.y) : 0;
-    if (lit > .01) { look.light += lit * 1.6; look.fog *= 1 - lit * .7; look.blur *= 1 - lit * .35; }
+    if (lit > .01) { look.wobble += lit * 2.4; look.light += lit * .9; look.fog *= 1 - lit * .35; }
     if(pixelRenderer?.draw(texture,this.image.silhouette,{
       x:this.x,y:this.y,width:drawWidth,height:drawHeight,angle,time:age/1000,
       phase:this.phase,alpha:arrivalAlpha,reducedMotion:aquariumMotionReduced,
