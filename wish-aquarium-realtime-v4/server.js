@@ -5,6 +5,9 @@ const express = require('express');
 const { Server } = require('socket.io');
 const catalog = require('./creature-catalog.json');
 const catalogModel = require('./catalog-model.js')(catalog);
+const fs = require('node:fs');
+const wishCore = require('./wish-core.js')();
+const wishRules = wishCore.create(catalogModel);
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -25,6 +28,27 @@ const wayLabels = ['신뢰형', '탐험형', '축적형', '회복형', '공존�
 const hues = [45, 290, 210, 0, 70, 165, 250];
 
 let creatures = [];
+
+// ---- Anonymous wish records (choices + an optional public message; no personal data) ----
+const recordsFile = process.env.WISH_RECORDS_FILE || path.join(root, 'data', 'wish-records.json');
+const maxRecords = clampNumber(process.env.MAX_WISH_RECORDS, 100, 100_000, 20_000);
+let wishRecords = [];
+try {
+  const loaded = JSON.parse(fs.readFileSync(recordsFile, 'utf8'));
+  if (Array.isArray(loaded)) wishRecords = loaded.filter(r => r && catalogModel.get(r.catalogId)).slice(-maxRecords);
+} catch (_) { wishRecords = []; }
+let recordsDirty = false;
+function persistRecords() {
+  if (!recordsDirty) return;
+  recordsDirty = false;
+  try {
+    fs.mkdirSync(path.dirname(recordsFile), { recursive: true });
+    fs.writeFileSync(recordsFile + '.tmp', JSON.stringify(wishRecords));
+    fs.renameSync(recordsFile + '.tmp', recordsFile);
+  } catch (error) { console.warn('Could not save wish records:', error.message); }
+}
+const recordIds = new Set(wishRecords.map(r => r.recordId).filter(Boolean));
+const lastRecordByAddress = new Map();
 const releaseIds = new Map();
 
 function clampNumber(value, minimum, maximum, fallback) {
@@ -86,6 +110,49 @@ app.get('/api/aquarium-summary', (_request, response) => {
 });
 
 app.get(['/', '/index.html'], (_request, response) => response.sendFile(path.join(root, 'index.html')));
+
+app.post('/api/wish-records', express.json({ limit: '4kb' }), (request, response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  const address = String(request.ip || '');
+  const now = Date.now();
+  const recordId = typeof request.body?.recordId === 'string' ? request.body.recordId.slice(0, 80) : '';
+  if (recordId && recordIds.has(recordId)) { response.json({ ok: true, duplicate: true }); return; }
+  if (now - (lastRecordByAddress.get(address) || 0) < 8000) { response.status(429).json({ ok: false, message: '잠시 후 다시 시도해 주세요.' }); return; }
+  const record = wishRules.cleanRecord(request.body);
+  if (!record) { response.status(400).json({ ok: false, message: '기록할 수 없는 생물이에요.' }); return; }
+  lastRecordByAddress.set(address, now);
+  if (lastRecordByAddress.size > 5000) lastRecordByAddress.clear();
+  record.recordId = recordId || crypto.randomUUID();
+  record.at = now;
+  recordIds.add(record.recordId);
+  wishRecords.push(record);
+  if (wishRecords.length > maxRecords) wishRecords.splice(0, wishRecords.length - maxRecords);
+  recordsDirty = true;
+  response.json({ ok: true });
+});
+
+// Statistics only from stored records; empty data is reported as empty, never filled in.
+app.get('/api/wish-stats', (request, response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  const wishType = typeof request.query.wishType === 'string' ? request.query.wishType : '';
+  const same = wishType ? wishRecords.filter(r => r.wishTypes.includes(wishType)) : [];
+  const counts = new Map();
+  for (const r of wishRecords) for (const w of r.wishTypes) counts.set(w, (counts.get(w) || 0) + 1);
+  const pool = wishType ? same : wishRecords;
+  const hours = Array(24).fill(0), years = Array(12).fill(0), ways = Array(7).fill(0), directions = Array(7).fill(0);
+  for (const r of pool) { for (const h of r.hours) hours[h]++; years[r.years]++; ways[r.wayIndex]++; directions[r.situationIndex]++; }
+  response.json({
+    total: wishRecords.length,
+    since: wishRecords.length ? new Date(wishRecords[0].at).toISOString() : null,
+    scope: wishType ? 'same-wish' : 'all',
+    wishType: wishType || null,
+    sameCount: same.length,
+    wishes: [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+    directions, ways, hours, years,
+    messages: pool.filter(r => r.message).slice(-40).reverse().map(r => r.message)
+  });
+});
+
 app.get(['/shared-aquarium', '/shared-aquarium/', '/shared-aquarium.html'], (_request, response) => {
   response.sendFile(path.join(root, 'shared-aquarium.html'));
 });
@@ -93,6 +160,11 @@ app.get(['/shared-aquarium', '/shared-aquarium/', '/shared-aquarium.html'], (_re
 for (const filename of [
   'style.css',
   'journey.js',
+  'wish-core.js',
+  'wish-field.js',
+  'wish.js',
+  'wish.css',
+  'index-legacy.html',
   'app.js',
   'config.js',
   'data.js',
@@ -175,12 +247,15 @@ io.on('connection', (socket) => {
 
 const cleanupTimer = setInterval(cleanExpiredCreatures, Math.min(creatureTtlMs, 300_000));
 cleanupTimer.unref();
+const recordsTimer = setInterval(persistRecords, 5000);
+recordsTimer.unref();
 
 httpServer.listen(port, host, () => {
   console.log(`Wish Aquarium listening on http://${host}:${port}`);
 });
 
 function shutdown() {
+  persistRecords();
   io.close(() => httpServer.close(() => process.exit(0)));
   setTimeout(() => process.exit(1), 5000).unref();
 }

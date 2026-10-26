@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js && node --check app.js && node --check journey.js && node --check data.js && node --check particles.js && node --check shared-aquarium.js && node --check aquarium-sprite.js && node --check aquarium-environment.js && node --check catalog-ui.js && node --check catalog-model.js && node scripts/verify-catalog.cjs && node scripts/verify-ui-flow.cjs && node scripts/verify-textures.cjs && node scripts/verify-save.cjs && node scripts/verify-silhouette.cjs && node scripts/verify-environment.cjs && node scripts/verify-journey.cjs && node scripts/verify-pixel-renderer.cjs",
+    "check": "node --check server.js && node --check app.js && node --check journey.js && node --check data.js && node --check particles.js && node --check shared-aquarium.js && node --check aquarium-sprite.js && node --check aquarium-environment.js && node --check catalog-ui.js && node --check catalog-model.js && node --check wish-core.js && node --check wish-field.js && node --check wish.js && node scripts/verify-catalog.cjs && node scripts/verify-ui-flow.cjs && node scripts/verify-textures.cjs && node scripts/verify-save.cjs && node scripts/verify-silhouette.cjs && node scripts/verify-environment.cjs && node scripts/verify-journey.cjs && node scripts/verify-pixel-renderer.cjs && node scripts/verify-wish.cjs",
     "postinstall": "node scripts/unpack-creatures.cjs"
   },
   "engines": {
