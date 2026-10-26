@@ -1,6 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const jobs=[];
-const context={AquariumSprite:require('../aquarium-sprite.js'),window:{WISH_AQUARIUM_CONFIG:{}},document:{querySelector:()=>({addEventListener(){}}),addEventListener(){}},loadImage:(url,ok,fail)=>jobs.push({url,ok,fail})};
+const context={AquariumSprite:require('../aquarium-sprite.js'),window:{WISH_AQUARIUM_CONFIG:{},matchMedia:()=>({matches:false,addEventListener(){}})},document:{querySelector:()=>({addEventListener(){}}),addEventListener(){}},loadImage:(url,ok,fail)=>jobs.push({url,ok,fail})};
 function texture(properties){return Object.assign({loadPixels(){this.pixels=new Uint8Array(this.width*this.height*4)},updatePixels(){}},properties);}
 vm.createContext(context);vm.runInContext(fs.readFileSync(path.resolve(__dirname,'../shared-aquarium.js'),'utf8'),context);
 const first=context.getCreatureTexture('one.png');
