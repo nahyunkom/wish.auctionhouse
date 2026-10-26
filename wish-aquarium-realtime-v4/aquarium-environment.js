@@ -341,7 +341,8 @@ function drawCurtain(ctx,w,h,seconds,dt){
 // appears inside them. Timings match shared-aquarium.js (BIRTH_*).
 const B_END=15;
 const BIRTH_CYAN=[150,235,255];
-function birth(points,x,y){
+// anchor (optional): () => {x, y, angle, scale} so the forming body follows a moving creature.
+function birth(points,x,y,anchor){
  if(motion.matches||!Array.isArray(points)||!Number.isFinite(x)||!Number.isFinite(y))return;
  drop(x,y,.25);
  const n=Math.min(points.length,4500),parts=new Array(n);
@@ -363,7 +364,7 @@ function birth(points,x,y){
    ph:rand()*6.28,size:rand()<.15?2:1.3,leave:(rand()-.5)*2,styles,glint:rand()<.09,orbit:.6+rand()*.8};
  }
  const aura='rgba('+Math.round(ar/n)+','+Math.round(ag/n)+','+Math.round(ab/n)+',';
- births.push({x,y,start:lastFront,parts,span,aura});
+ births.push({x,y,start:lastFront,parts,span,aura,anchor:typeof anchor==='function'?anchor:null});
 }
 // Three sweeping S-shaped ribbons around the birth point, each slowly swaying and
 // turning on its own, so they cross and wind around one another.
@@ -393,11 +394,15 @@ function auraSprite(rgba,radius){
 function drawBirths(ctx,w,h,seconds,dt){
  for(let i=births.length-1;i>=0;i--){
   const B=births[i],t=seconds-B.start;
+  // follow the creature as it drifts, sways and breathes while forming
+  let A=null;try{A=B.anchor&&B.anchor();}catch(_){A=null;}
+  const ax=A&&Number.isFinite(A.x)?A.x:B.x,ay=A&&Number.isFinite(A.y)?A.y:B.y;
+  const aa=A&&Number.isFinite(A.angle)?A.angle:0,as=A&&Number.isFinite(A.scale)?A.scale:1,ca=Math.cos(aa)*as,sa=Math.sin(aa)*as;
   if(t>B_END){births.splice(i,1);continue;}
   const fadeIn=Math.min(1,t/2.5),release=Math.min(1,Math.max(0,(t-9)/5));
   // Aura in the creature's own colour, swelling as the form gathers.
   const auraA=Math.min(1,Math.max(0,(t-3.5)/4))*(1-release*.85)*(.85+.15*Math.sin(t*.9));
-  if(auraA>.01){const g=auraSprite(B.aura,Math.min(300,B.span*.75));ctx.globalAlpha=auraA*.55;ctx.drawImage(g,B.x-g.width/2,B.y-g.height/2);ctx.globalAlpha=1;}
+  if(auraA>.01){const g=auraSprite(B.aura,Math.min(300,B.span*.75));ctx.globalAlpha=auraA*.55;ctx.drawImage(g,ax-g.width/2,ay-g.height/2);ctx.globalAlpha=1;}
   let last='';
   for(const p of B.parts){
    const u=Math.min(1,Math.max(0,(t-1.5-p.delay)/5.5)),e=u*u*(3-2*u);
@@ -407,7 +412,8 @@ function drawBirths(ctx,w,h,seconds,dt){
    const fl=6+(1-e)*10;
    const fx=Math.sin(p.ty*.045+t*.7+p.ph)*fl+Math.sin(t*.31+p.ph*2)*fl*.5;
    const fy=Math.cos(p.tx*.04+t*.6+p.ph)*fl*.6;
-   let px=B.x+rx*(1-e)+p.tx*e+fx*(1-e*.75),py=B.y+ry*(1-e)+p.ty*e+fy*(1-e*.75);
+   const tx=p.tx*ca-p.ty*sa,ty=p.tx*sa+p.ty*ca;
+   let px=ax+rx*(1-e)+tx*e+fx*(1-e*.75),py=ay+ry*(1-e)+ty*e+fy*(1-e*.75);
    if(release>0){
     // Released points rise in a slow vortex around the new creature.
     const r=release*release,ang=r*p.orbit*2.4+p.ph,rad=r*(60+p.orbit*80);

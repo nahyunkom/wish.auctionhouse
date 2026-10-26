@@ -120,6 +120,7 @@ class WishSwimmer {
     this.isNew = isNew;
     // Birth timeline (seconds since the PNG was ready); null until then.
     this.birthAt = null;
+    this.birthOff = null;
     this.school = isSchooling(data) ? this.makeSchool() : null;
     this.vy = 0;
     // How stirred this creature is by a visitor's light (rises fast, settles slowly).
@@ -155,9 +156,18 @@ class WishSwimmer {
     if (born < 1) {
       // Held in the light while forming; afterwards it eases into swimming.
       const free = Math.max(0, Math.min(1, (born * BIRTH_TOTAL - BIRTH_WAKE) / 4));
-      if (free <= 0) { this.y = this.baseY + Math.sin(t * .5 + this.phase) * 3; this.vy = 0; if (this.school) for (const m of this.school) { m.x = this.x; m.y = this.y; } return; }
+      // While forming it is never still: it drifts, sways and breathes in the water.
+      // This floating fades out as it begins to swim, so the motion carries on.
+      const bt = born * BIRTH_TOTAL, held = 1 - free;
+      this.birthOff = {
+        x: held * (Math.sin(bt * .33 + this.phase) * 30 + Math.sin(bt * .19 + this.phase * 2) * 16),
+        y: held * (Math.sin(bt * .47 + this.phase) * 14 + Math.sin(bt * .27) * 6),
+        a: held * Math.sin(bt * .55 + this.phase) * .08,
+        s: 1 + held * .045 * Math.sin(bt * .8 + this.phase)
+      };
+      if (free <= 0) { this.y = this.baseY; this.vy = 0; if (this.school) for (const m of this.school) { m.x = this.x + this.birthOff.x; m.y = this.y + this.birthOff.y; } return; }
       seconds *= free;
-    }
+    } else this.birthOff = null;
     const before = this.x, beforeY = this.y;
     // Touched by the stirred light or a passing light ring, a creature brightens,
     // quickens a little and eases away from the hand, then calms.
@@ -247,7 +257,11 @@ class WishSwimmer {
       this.birthAt = millis();
       if (!aquariumMotionReduced && AquariumEnvironment.birth) {
         const h = Math.min(this.baseHeight, viewW() * (portraitView() ? .5 : .30) / ratio);
-        AquariumEnvironment.birth(this.birthPoints(h * ratio, h), this.x, this.y);
+        const self = this;
+        AquariumEnvironment.birth(this.birthPoints(h * ratio, h), this.x, this.y, () => {
+          const o = self.birthOff || { x: 0, y: 0, a: 0, s: 1 };
+          return { x: self.x + o.x, y: self.y + o.y, angle: o.a, scale: o.s };
+        });
       }
     }
     let arrivalAlpha = this.waterAlpha;
@@ -287,7 +301,8 @@ class WishSwimmer {
     }
     const drawHeight = Math.min(this.baseHeight,viewW()*(portraitView()?.5:.30)/ratio);
     const angle = aquariumMotionReduced?0:Math.sin(age * .00035 + this.phase) * .018 + slope * this.direction;
-    this.drawOne(texture, ratio, this.x, this.y, drawHeight, angle, age, this.phase, arrivalAlpha, look);
+    const o = this.birthOff || { x: 0, y: 0, a: 0, s: 1 };
+    this.drawOne(texture, ratio, this.x + o.x, this.y + o.y, drawHeight * o.s, angle + o.a, age, this.phase, arrivalAlpha, look);
   }
 
   drawOne(texture, ratio, x, y, drawHeight, angle, age, phase, alpha, look) {
