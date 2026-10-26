@@ -88,7 +88,7 @@ function draw() {
 const SCHOOL_WISH = '소속 군체형';
 // Birth of a released creature, in seconds: it surfaces through stirred water and
 // light, and only starts to swim, very slowly, at BIRTH_WAKE.
-const BIRTH_WAKE = 7, BIRTH_TOTAL = 11;
+const BIRTH_WAKE = 12, BIRTH_TOTAL = 15;
 const smooth01 = v => { const x = Math.min(1, Math.max(0, v)); return x * x * (3 - 2 * x); };
 const isSchooling = data => data.school === true || data.wishType === SCHOOL_WISH;
 
@@ -205,21 +205,32 @@ class WishSwimmer {
   // Sample the creature's real outline (and some of its body) from the display copy
   // of its original PNG, as offsets in screen pixels around its centre.
   birthPoints(drawWidth, drawHeight) {
+    // Dense samples of the creature's real form from the display copy of its PNG,
+    // weighted by alpha and brightness so bright structures gather more points.
     const img = this.image, b = img.silhouette.bounds, px = img.pixels, w = img.width;
     if (!px) return [];
-    const edge = [], body = [];
-    const step = Math.max(1, Math.round(Math.sqrt(b.width * b.height / 9000)));
-    for (let y = b.y + 1; y < b.y + b.height - 1; y += step) {
-      for (let x = b.x + 1; x < b.x + b.width - 1; x += step) {
-        const a = px[(y * w + x) * 4 + 3];
-        if (a < 140) continue;
-        const near = Math.min(px[(y * w + x - step) * 4 + 3] || 0, px[(y * w + x + step) * 4 + 3] || 0, px[((y - step) * w + x) * 4 + 3] || 0, px[((y + step) * w + x) * 4 + 3] || 0);
-        (near < 60 ? edge : body).push([x, y]);
+    const step = Math.max(1, Math.round(Math.sqrt(b.width * b.height / 40000)));
+    const cells = [], weights = [];
+    let total = 0;
+    for (let y = b.y; y < b.y + b.height; y += step) {
+      for (let x = b.x; x < b.x + b.width; x += step) {
+        const i = (y * w + x) * 4, a = px[i + 3];
+        if (a < 40) continue;
+        const wgt = (a / 255) * (.25 + Math.max(px[i], px[i + 1], px[i + 2]) / 255);
+        cells.push(x, y); total += wgt; weights.push(total);
       }
     }
-    const pick = (list, n) => { const out = []; for (let i = 0; i < n && list.length; i++) out.push(list[Math.floor(seededNoise(this.seed, 300 + i * 7 + out.length) * list.length)]); return out; };
-    const chosen = [...pick(edge, 110), ...pick(body, 60)];
-    return chosen.map(([x, y]) => ({ dx: ((x - b.x) / b.width - .5) * drawWidth, dy: ((y - b.y) / b.height - .5) * drawHeight }));
+    if (!weights.length) return [];
+    const count = Math.min(3200, Math.max(1200, Math.round(drawWidth * drawHeight / 22)));
+    const out = [];
+    for (let n = 0; n < count; n++) {
+      const r = seededNoise(this.seed, 500 + n) * total;
+      let lo = 0, hi = weights.length - 1;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (weights[mid] < r) lo = mid + 1; else hi = mid; }
+      const x = cells[lo * 2] + seededNoise(this.seed, 9000 + n) * step, y = cells[lo * 2 + 1] + seededNoise(this.seed, 13000 + n) * step;
+      out.push({ dx: ((x - b.x) / b.width - .5) * drawWidth, dy: ((y - b.y) / b.height - .5) * drawHeight });
+    }
+    return out;
   }
 
   draw() {
@@ -242,13 +253,12 @@ class WishSwimmer {
       const bt = this.birthProgress() * BIRTH_TOTAL;
       if (aquariumMotionReduced) arrivalAlpha *= Math.min(1, bt / 1.4);
       else if (bt < BIRTH_TOTAL) {
-        // Seen first as a faint, rippling shape through the water, then slowly clearer.
-        const k = smooth01((bt - 1.2) / 6.3);
-        arrivalAlpha *= Math.min(1, bt / 2) * .15 + .85 * k * k;
-        look.blur += (1 - k) * 9;
-        look.wobble += (1 - k) * 4;
-        look.light += (1 - k) * 1.1;
-        look.fog *= .35 + .65 * k;
+        // The particle form gathers first; the creature appears inside it from ~8 s.
+        const k = smooth01((bt - 8) / 4);
+        arrivalAlpha *= k;
+        look.blur += (1 - k) * 6;
+        look.light += (1 - k) * .8;
+        look.fog *= .5 + .5 * k;
       }
     }
     // Near a visitor's touch the water in front of a creature stirs: its outline
