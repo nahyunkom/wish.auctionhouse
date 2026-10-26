@@ -359,7 +359,7 @@ function birth(points,x,y){
   const styles=[];
   for(let c=0;c<4;c++){const f=c/3,r=Math.round(BIRTH_CYAN[0]+(col[0]-BIRTH_CYAN[0])*f),g=Math.round(BIRTH_CYAN[1]+(col[1]-BIRTH_CYAN[1])*f),bl=Math.round(BIRTH_CYAN[2]+(col[2]-BIRTH_CYAN[2])*f);
    for(let k=0;k<4;k++)styles.push('rgba('+r+','+g+','+bl+','+((k+.8)/4).toFixed(2)+')');}
-  parts[i]={tx:p.dx,ty:p.dy,u:rand(),lane:(rand()+rand()+rand()-1.5)*15,strand:i%3,delay:rand()*3+rand()*1.5,
+  parts[i]={tx:p.dx,ty:p.dy,u:rand(),lane:(rand()+rand()+rand()-1.5)*27,strand:i%3,sx:(rand()-.5)*2,sy:(rand()-.5)*2,delay:rand()*3+rand()*1.5,
    ph:rand()*6.28,size:rand()<.15?2:1.3,leave:(rand()-.5)*2,styles,glint:rand()<.09,orbit:.6+rand()*.8};
  }
  const aura='rgba('+Math.round(ar/n)+','+Math.round(ag/n)+','+Math.round(ab/n)+',';
@@ -374,7 +374,7 @@ function ribbon(B,u,t,lane,strand){
  let x=A*Math.sin(Math.PI*k+t*.15+off),y=H*k*.9+Math.sin(t*.2+k*2+off)*B.span*.07;
  const turn=Math.sin(t*.07+off)*.35+(strand-1)*.55,ct=Math.cos(turn),st=Math.sin(turn);
  const dx=A*Math.PI*Math.cos(Math.PI*k+t*.15+off),dy=H*.9,len=Math.hypot(dx,dy)||1;
- const thick=lane*(.45+.85*Math.sin(Math.PI*s));
+ const thick=lane*(.7+.6*Math.sin(Math.PI*s));
  x+=-dy/len*thick;y+=dx/len*thick;
  return [x*ct-y*st,x*st+y*ct];
 }
@@ -401,7 +401,9 @@ function drawBirths(ctx,w,h,seconds,dt){
   let last='';
   for(const p of B.parts){
    const u=Math.min(1,Math.max(0,(t-1.5-p.delay)/5.5)),e=u*u*(3-2*u);
-   const [rx,ry]=ribbon(B,p.u,t,p.lane,p.strand);
+   let [rx,ry]=ribbon(B,p.u,t,p.lane,p.strand);
+   // a loose cloud around each ribbon, so it reads as drifting mist, not a line
+   const cloud=B.span*.07*(1-e);rx+=p.sx*cloud+Math.sin(t*.4+p.ph)*cloud*.3;ry+=p.sy*cloud*.8+Math.cos(t*.35+p.ph)*cloud*.3;
    const fl=6+(1-e)*10;
    const fx=Math.sin(p.ty*.045+t*.7+p.ph)*fl+Math.sin(t*.31+p.ph*2)*fl*.5;
    const fy=Math.cos(p.tx*.04+t*.6+p.ph)*fl*.6;
