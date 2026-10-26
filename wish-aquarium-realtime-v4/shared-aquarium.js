@@ -3,11 +3,8 @@ const creatureTextures = new Map();
 const textureQueue = [];
 let activeTextureLoads = 0;
 const swimmers = [];
-const arrivals = [];
+const residentSwimmers = [];
 let socket = null;
-let arrivalTimer = null;
-let firstFrame = true;
-let backgroundParticles = [];
 let pixelRenderer = null;
 const aquariumMotionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
 let aquariumMotionReduced = aquariumMotionPreference.matches;
@@ -55,44 +52,20 @@ function setup() {
   frameRate(60);
   imageMode(CENTER);
   noStroke();
-  backgroundParticles = Array.from({ length: 190 }, (_, index) => makeBackgroundParticle(index));
+  for(const data of window.AQUARIUM_RESIDENTS || []) residentSwimmers.push(new WishSwimmer(data));
   connectAquarium();
 }
 
 function draw() {
   // Clear every frame: screen blending over old pixels bleaches PNG colors.
   AquariumEnvironment.background(drawingContext,width,height,millis()/1000);
-  firstFrame = false;
-  // Reference photograph supplies the water and particulate detail.
+  // Water is rendered in real time; no photograph is used.
   if(pixelRenderer)pixelRenderer.begin(width,height,Math.min(window.devicePixelRatio||1,1.75),AquariumEnvironment.composite());
-  for (const swimmer of swimmers) {
+  for (const swimmer of [...residentSwimmers,...swimmers].sort((a,b)=>b.depth-a.depth)) {
     swimmer.update();
     swimmer.draw();
   }
   // No arrival graphics or text over the aquarium.
-}
-
-function makeBackgroundParticle(index) {
-  const randomSeedValue = (index + 1) * 13.71;
-  return {
-    x: noise(randomSeedValue) * windowWidth,
-    y: noise(randomSeedValue + 20) * windowHeight,
-    size: .5 + noise(randomSeedValue + 40) * 1.8,
-    speed: .04 + noise(randomSeedValue + 60) * .18,
-    phase: noise(randomSeedValue + 80) * TWO_PI
-  };
-}
-
-function drawBackgroundParticles() {
-  blendMode(ADD);
-  for (const particle of backgroundParticles) {
-    particle.x += particle.speed;
-    particle.y += Math.sin(frameCount * .005 + particle.phase) * .035;
-    if (particle.x > width + 4) particle.x = -4;
-    fill(74, 176, 186, 35 + particle.size * 14);
-    circle(particle.x, particle.y, particle.size);
-  }
-  blendMode(BLEND);
 }
 
 class WishSwimmer {
@@ -105,13 +78,14 @@ class WishSwimmer {
     }
     this.seed = Number(data.seed) || Math.floor(Math.random() * 100000);
     this.direction = this.seed % 2 ? 1 : -1;
-    this.scale = .55 + seededNoise(this.seed, 1) * .6;
-    this.waterAlpha = .52 + seededNoise(this.seed, 7) * .26;
-    this.baseHeight = Math.min(windowHeight * .12, Math.max(54, windowWidth * .08)) * this.scale;
-    this.x = isNew ? width * .5 : seededNoise(this.seed, 2) * width;
-    this.y = isNew ? height * .53 : height * (.16 + seededNoise(this.seed, 3) * .68);
+    this.depth = data.exhibitionResident ? data.depth : .18+seededNoise(this.seed,8)*.65;
+    this.scale = .9+seededNoise(this.seed,1)*.2;
+    this.waterAlpha = .30 + (1-this.depth)*.54;
+    this.baseHeight = windowHeight*(.025+.18*Math.pow(1-this.depth,2))*this.scale;
+    this.x = isNew ? width*.5 : width*(data.exhibitionResident?data.screenX:seededNoise(this.seed,2));
+    this.y = isNew ? height*.53 : height*(data.exhibitionResident?data.screenY:.32+seededNoise(this.seed,3)*.60);
     this.baseY = this.y;
-    this.speed = this.direction * (3 + seededNoise(this.seed, 4) * 4);
+    this.speed = this.direction*(3+(1-this.depth)*8+seededNoise(this.seed,4)*3);
     this.bobAmount = 3 + seededNoise(this.seed, 6) * 3;
     this.phase = seededNoise(this.seed, 5) * TWO_PI;
     this.bornAt = millis();
@@ -168,7 +142,6 @@ function addCreature(data, isNew = true) {
   if (swimmers.length > 120) swimmers.splice(0, swimmers.length - 120);
   updateCount();
   if (isNew) {
-    arrivals.push({ x: width * .5, y: height * .53, bornAt: millis() });
     showArrival(data.name || '새로운 소망생물');
   }
 }
@@ -182,24 +155,6 @@ function syncAquariumState(data) {
 function updateCount() { /* No counter on the exhibition screen. */ }
 
 function showArrival() { /* Keep the screen free of arrival labels. */ }
-
-function drawArrivalRipples() {
-  for (let index = arrivals.length - 1; index >= 0; index -= 1) {
-    const age = millis() - arrivals[index].bornAt;
-    if (age > 2600) {
-      arrivals.splice(index, 1);
-      continue;
-    }
-    const progress = age / 2600;
-    noFill();
-    stroke(124, 215, 221, 110 * (1 - progress));
-    strokeWeight(1.2);
-    circle(arrivals[index].x, arrivals[index].y, 60 + progress * Math.min(width, height) * .9);
-    stroke(181, 200, 119, 70 * (1 - progress));
-    circle(arrivals[index].x, arrivals[index].y, 30 + progress * Math.min(width, height) * .65);
-    noStroke();
-  }
-}
 
 function setLiveState() { /* Connection state remains internal. */ }
 
@@ -228,13 +183,11 @@ function connectAquarium() {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  backgroundParticles = Array.from({ length: 190 }, (_, index) => makeBackgroundParticle(index));
   for (const swimmer of swimmers) {
     swimmer.y = constrain(swimmer.y, height * .12, height * .86);
     swimmer.baseY = swimmer.y;
-    swimmer.baseHeight = Math.min(windowHeight * .12, Math.max(54, windowWidth * .08)) * swimmer.scale;
+    swimmer.baseHeight = windowHeight*(.025+.18*Math.pow(1-swimmer.depth,2))*swimmer.scale;
   }
-  firstFrame = true;
 }
 
 function toggleFullscreen() {
