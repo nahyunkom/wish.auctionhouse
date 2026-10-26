@@ -221,14 +221,16 @@ class WishSwimmer {
       }
     }
     if (!weights.length) return [];
-    const count = Math.min(3200, Math.max(1200, Math.round(drawWidth * drawHeight / 22)));
+    const count = Math.min(4500, Math.max(1800, Math.round(drawWidth * drawHeight / 15)));
     const out = [];
     for (let n = 0; n < count; n++) {
       const r = seededNoise(this.seed, 500 + n) * total;
       let lo = 0, hi = weights.length - 1;
       while (lo < hi) { const mid = (lo + hi) >> 1; if (weights[mid] < r) lo = mid + 1; else hi = mid; }
       const x = cells[lo * 2] + seededNoise(this.seed, 9000 + n) * step, y = cells[lo * 2 + 1] + seededNoise(this.seed, 13000 + n) * step;
-      out.push({ dx: ((x - b.x) / b.width - .5) * drawWidth, dy: ((y - b.y) / b.height - .5) * drawHeight });
+      // Carry the creature's own colour at that spot (display copy; source untouched).
+      const ci = (cells[lo * 2 + 1] * w + cells[lo * 2]) * 4;
+      out.push({ dx: ((x - b.x) / b.width - .5) * drawWidth, dy: ((y - b.y) / b.height - .5) * drawHeight, r: px[ci], g: px[ci + 1], b: px[ci + 2] });
     }
     return out;
   }

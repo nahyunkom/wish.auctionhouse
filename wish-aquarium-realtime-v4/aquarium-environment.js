@@ -334,64 +334,94 @@ function drawCurtain(ctx,w,h,seconds,dt){
  ctx.globalAlpha=1;
 }
 // Birth of a released creature as a slow particle sculpture (about fifteen seconds):
-// thousands of fine points stream around the spot as a flowing ribbon, slowly
-// condense into the creature's form (denser where the original image is brighter),
-// hold it while it breathes, then let go along the current as the creature itself
+// thousands of fine points stream around the spot as three intertwining ribbons,
+// slowly condense into the creature's form (denser where the original image is
+// brighter), taking on the creature's own colours, breathe there with a soft aura
+// and twinkling glints, then loosen into a slow rising vortex as the creature itself
 // appears inside them. Timings match shared-aquarium.js (BIRTH_*).
 const B_END=15;
+const BIRTH_CYAN=[150,235,255];
 function birth(points,x,y){
  if(motion.matches||!Array.isArray(points)||!Number.isFinite(x)||!Number.isFinite(y))return;
  drop(x,y,.25);
- const n=Math.min(points.length,3200),parts=new Array(n);
- const span=Math.max(200,Math.min(460,Math.sqrt(n)*8));
+ const n=Math.min(points.length,4500),parts=new Array(n);
+ const span=Math.max(200,Math.min(480,Math.sqrt(n)*7.5));
+ let ar=0,ag=0,ab=0;
  for(let i=0;i<n;i++){
   const p=points[i];
-  parts[i]={tx:p.dx,ty:p.dy,u:rand(),lane:(rand()+rand()+rand()-1.5)*15,delay:rand()*3+rand()*1.5,
-   ph:rand()*6.28,size:rand()<.18?2.2:1.5,leave:(rand()-.5)*2};
+  // The creature's colour, lifted toward light so it glows in the water.
+  const cr=Number.isFinite(p.r)?p.r:150,cg=Number.isFinite(p.g)?p.g:235,cb=Number.isFinite(p.b)?p.b:255;
+  // keep the hue: brighten dark tones gently, never wash pale ones to white
+  const m=Math.max(cr,cg,cb,1),lift=Math.min(1.6,200/m);
+  const col=[Math.min(255,cr*lift+18),Math.min(255,cg*lift+22),Math.min(255,cb*lift+30)];
+  ar+=col[0];ag+=col[1];ab+=col[2];
+  // Pre-built colour strings: 4 stages from cyan to the creature's colour × 4 alpha levels.
+  const styles=[];
+  for(let c=0;c<4;c++){const f=c/3,r=Math.round(BIRTH_CYAN[0]+(col[0]-BIRTH_CYAN[0])*f),g=Math.round(BIRTH_CYAN[1]+(col[1]-BIRTH_CYAN[1])*f),bl=Math.round(BIRTH_CYAN[2]+(col[2]-BIRTH_CYAN[2])*f);
+   for(let k=0;k<4;k++)styles.push('rgba('+r+','+g+','+bl+','+((k+.8)/4).toFixed(2)+')');}
+  parts[i]={tx:p.dx,ty:p.dy,u:rand(),lane:(rand()+rand()+rand()-1.5)*15,strand:i%3,delay:rand()*3+rand()*1.5,
+   ph:rand()*6.28,size:rand()<.15?2:1.3,leave:(rand()-.5)*2,styles,glint:rand()<.09,orbit:.6+rand()*.8};
  }
- births.push({x,y,start:lastFront,parts,span});
+ const aura='rgba('+Math.round(ar/n)+','+Math.round(ag/n)+','+Math.round(ab/n)+',';
+ births.push({x,y,start:lastFront,parts,span,aura});
 }
-// One sweeping S-shaped ribbon around the birth point that slowly sways and turns;
-// u in 0..1 runs along it and the points flow along it over time.
-function ribbon(B,u,t,lane){
- const s=(u+t*.03)%1,k=s*2-1;                          // -1 .. 1 along the ribbon
- const A=B.span*.62,H=B.span*1.05;
- let x=A*Math.sin(Math.PI*k+t*.15),y=H*k*.9+Math.sin(t*.2+k*2)*B.span*.06;
- const turn=Math.sin(t*.07)*.35,ct=Math.cos(turn),st=Math.sin(turn);
- const dx=A*Math.PI*Math.cos(Math.PI*k+t*.15),dy=H*.9,len=Math.hypot(dx,dy)||1;
- const thick=lane*(.45+.85*Math.sin(Math.PI*s));        // thicker in the middle, tapering at the ends
+// Three sweeping S-shaped ribbons around the birth point, each slowly swaying and
+// turning on its own, so they cross and wind around one another.
+function ribbon(B,u,t,lane,strand){
+ const off=strand*2.1;
+ const s=(u+t*(.028+strand*.006))%1,k=s*2-1;
+ const A=B.span*(.62-strand*.1),H=B.span*(1.05-strand*.12);
+ let x=A*Math.sin(Math.PI*k+t*.15+off),y=H*k*.9+Math.sin(t*.2+k*2+off)*B.span*.07;
+ const turn=Math.sin(t*.07+off)*.35+(strand-1)*.55,ct=Math.cos(turn),st=Math.sin(turn);
+ const dx=A*Math.PI*Math.cos(Math.PI*k+t*.15+off),dy=H*.9,len=Math.hypot(dx,dy)||1;
+ const thick=lane*(.45+.85*Math.sin(Math.PI*s));
  x+=-dy/len*thick;y+=dx/len*thick;
  return [x*ct-y*st,x*st+y*ct];
+}
+// A soft coloured aura, cached per colour.
+const auraSprites=new Map();
+function auraSprite(rgba,radius){
+ const key=rgba+'|'+Math.round(radius);
+ if(auraSprites.has(key))return auraSprites.get(key);
+ const size=Math.round(radius)*2+2,c=document.createElement('canvas');c.width=c.height=size;
+ const g=c.getContext('2d'),m=size/2,grad=g.createRadialGradient(m,m,0,m,m,radius);
+ grad.addColorStop(0,rgba+'0.55)');grad.addColorStop(.45,rgba+'0.18)');grad.addColorStop(1,rgba+'0)');
+ g.fillStyle=grad;g.fillRect(0,0,size,size);
+ if(auraSprites.size>24)auraSprites.delete(auraSprites.keys().next().value);
+ auraSprites.set(key,c);return c;
 }
 function drawBirths(ctx,w,h,seconds,dt){
  for(let i=births.length-1;i>=0;i--){
   const B=births[i],t=seconds-B.start;
   if(t>B_END){births.splice(i,1);continue;}
   const fadeIn=Math.min(1,t/2.5),release=Math.min(1,Math.max(0,(t-9)/5));
-  const bands=[[],[],[],[]];
+  // Aura in the creature's own colour, swelling as the form gathers.
+  const auraA=Math.min(1,Math.max(0,(t-3.5)/4))*(1-release*.85)*(.85+.15*Math.sin(t*.9));
+  if(auraA>.01){const g=auraSprite(B.aura,Math.min(300,B.span*.75));ctx.globalAlpha=auraA*.55;ctx.drawImage(g,B.x-g.width/2,B.y-g.height/2);ctx.globalAlpha=1;}
+  let last='';
   for(const p of B.parts){
-   // condensation: begins after the particle's delay, eases over ~5.5 s
    const u=Math.min(1,Math.max(0,(t-1.5-p.delay)/5.5)),e=u*u*(3-2*u);
-   const [rx,ry]=ribbon(B,p.u,t,p.lane);
-   // gentle flow noise so the form breathes and nothing is ever static
+   const [rx,ry]=ribbon(B,p.u,t,p.lane,p.strand);
    const fl=6+(1-e)*10;
    const fx=Math.sin(p.ty*.045+t*.7+p.ph)*fl+Math.sin(t*.31+p.ph*2)*fl*.5;
    const fy=Math.cos(p.tx*.04+t*.6+p.ph)*fl*.6;
    let px=B.x+rx*(1-e)+p.tx*e+fx*(1-e*.75),py=B.y+ry*(1-e)+p.ty*e+fy*(1-e*.75);
-   // release: the points loosen and drift up and sideways along the current
-   if(release>0){const r=release*release;px+=(p.leave*60+Math.sin(t*.5+p.ph)*30)*r;py-=(40+p.ph*12)*r;}
-   const a=fadeIn*(.8+.2*e)*(1-release)*(.75+.25*Math.sin(t*1.3+p.ph*3));
+   if(release>0){
+    // Released points rise in a slow vortex around the new creature.
+    const r=release*release,ang=r*p.orbit*2.4+p.ph,rad=r*(60+p.orbit*80);
+    px+=Math.cos(ang)*rad+p.leave*30*r;py+=Math.sin(ang)*rad*.5-(50+p.ph*14)*r;
+   }
+   // dimmer as points pack into the form, so its inner structure stays legible
+   const a=fadeIn*(.85-.42*e)*(1-release*.9)*(.75+.25*Math.sin(t*1.3+p.ph*3));
    if(a<.03)continue;
-   bands[Math.min(3,Math.floor(a*4))].push(px,py,p.size);
+   const style=p.styles[Math.min(3,Math.floor(e*3.99))*4+Math.min(3,Math.floor(a*4))];
+   if(style!==last){ctx.fillStyle=style;last=style;}
+   ctx.fillRect(px-p.size/2,py-p.size/2,p.size,p.size);
+   if(p.glint){
+    const tw=Math.pow(.5+.5*Math.sin(t*2.3+p.ph*5),6);
+    if(tw>.05){const g=glowSprite(4+tw*7);ctx.globalAlpha=a*tw*.9;ctx.drawImage(g,px-g.width/2,py-g.height/2);ctx.globalAlpha=1;}
+   }
   }
-  for(let k=0;k<4;k++){
-   const list=bands[k];if(!list.length)continue;
-   ctx.fillStyle='rgba(205,245,255,'+((k+.8)/4).toFixed(3)+')';
-   for(let j=0;j<list.length;j+=3){const s=list[j+2];ctx.fillRect(list[j]-s/2,list[j+1]-s/2,s,s);}
-  }
-  // a faint inner glow once the form has gathered
-  const glowA=.1*Math.min(1,Math.max(0,(t-5)/3))*(1-release);
-  if(glowA>.005){const g=glowSprite(Math.min(260,B.span*.7));ctx.globalAlpha=glowA;ctx.drawImage(g,B.x-g.width/2,B.y-g.height/2);ctx.globalAlpha=1;}
  }
 }
 // depth z: 0 near the glass, 1 far away.
