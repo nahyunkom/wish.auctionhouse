@@ -99,6 +99,7 @@ for (const filename of [
   'creature-catalog.js',
   'catalog-model.js',
   'catalog-ui.js',
+  'creature-names.js',
   'particles.js',
   'shared-aquarium.css',
   'shared-aquarium.js',
