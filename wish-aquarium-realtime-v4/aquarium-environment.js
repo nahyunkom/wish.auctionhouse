@@ -5,17 +5,34 @@
 // side while the computer still outputs landscape. A portrait display needs nothing.
 const view=(()=>{
  let rotation=0;
- try{const r=Number(new URLSearchParams(location.search).get('rotate'));rotation=r===90?90:(r===-90||r===270)?-90:0;}catch(_){}
- const width=()=>rotation?innerHeight:innerWidth;
- const height=()=>rotation?innerWidth:innerHeight;
+ let capsule=false,ratio=300/104;
+ try{
+  const params=new URLSearchParams(location.search),r=Number(params.get('rotate'));
+  capsule=params.get('shape')==='capsule';
+  const requested=Number(params.get('capsuleRatio'));
+  if(Number.isFinite(requested)&&requested>=1.2&&requested<=6)ratio=requested;
+  // Physical projector rotation supplies the orientation in capsule mode.
+  rotation=capsule?0:r===90?90:(r===-90||r===270)?-90:0;
+ }catch(_){}
+ const width=()=>capsule?Math.floor(Math.min(innerWidth*.96,innerHeight*.9*ratio)):rotation?innerHeight:innerWidth;
+ const height=()=>capsule?Math.max(1,Math.round(width()/ratio)):rotation?innerWidth:innerHeight;
+ const left=()=>Math.round((innerWidth-width())/2);
+ const top=()=>Math.round((innerHeight-height())/2);
+ const density=()=>Math.min(root.devicePixelRatio||1,capsule?2:1.75);
  function apply(){
-  const stage=document.querySelector('#aquarium-stage');if(!stage||!rotation)return;
+  const stage=document.querySelector('#aquarium-stage');if(!stage)return;
+  if(capsule){
+   document.documentElement.dataset.projection='capsule';
+   Object.assign(stage.style,{inset:'auto',left:left()+'px',top:top()+'px',width:width()+'px',height:height()+'px',transform:'none'});
+   return;
+  }
+  if(!rotation)return;
   Object.assign(stage.style,{inset:'auto',left:'0',top:'0',width:innerHeight+'px',height:innerWidth+'px',transformOrigin:'0 0',
    transform:rotation===90?'translate('+innerWidth+'px,0) rotate(90deg)':'translate(0,'+innerHeight+'px) rotate(-90deg)'});
  }
  // Screen coordinates (pointer events) to aquarium coordinates.
- function toStage(x,y){return rotation===90?{x:y,y:innerWidth-x}:rotation===-90?{x:innerHeight-y,y:x}:{x,y};}
- return {get rotation(){return rotation;},width,height,apply,toStage,portrait:()=>height()>width()*1.05};
+ function toStage(x,y){return capsule?{x:x-left(),y:y-top()}:rotation===90?{x:y,y:innerWidth-x}:rotation===-90?{x:innerHeight-y,y:x}:{x,y};}
+ return {get rotation(){return rotation;},capsule,width,height,density,apply,toStage,portrait:()=>height()>width()*1.05};
 })();
 root.AquariumView=view;
 if(typeof document!=='undefined'&&document.readyState!=='loading')view.apply();
@@ -23,7 +40,7 @@ else if(typeof document!=='undefined'&&document.addEventListener)document.addEve
 if(typeof addEventListener==='function')addEventListener('resize',view.apply);
 // Real-time participating water volume. No photographic textures or remote assets.
 const tinted=new WeakMap();
-let canvas,gl,program,uniforms,failed=false,lost=false,frames=0,lastTime=0,quality=.6;
+let canvas,gl,program,uniforms,failed=false,lost=false,frames=0,lastTime=0,quality=view.capsule?1:.6;
 const pointer={x:0,y:0};
 const motion=matchMedia('(prefers-reduced-motion: reduce)');
 const vertex=`
@@ -195,7 +212,7 @@ function background(ctx,w,h,seconds){
  ctx.clearRect(0,0,w,h);
  if(failed||lost){fallback(ctx,w,h,t);}else{
   // A bounded offscreen resolution keeps ray marching practical on iPad GPUs.
-  const scale=Math.min(quality,Math.sqrt(850000/(w*h)));
+  const scale=Math.min(quality,Math.sqrt((view.capsule?2073600:850000)/(w*h)));
   const rw=Math.max(1,Math.round(w*scale)),rh=Math.max(1,Math.round(h*scale));
   if(canvas.width!==rw||canvas.height!==rh){canvas.width=rw;canvas.height=rh;gl.viewport(0,0,rw,rh);}
   gl.useProgram(program);gl.uniform2f(uniforms.resolution,rw,rh);gl.uniform1f(uniforms.time,t);gl.uniform2f(uniforms.pointer,pointer.x,pointer.y);

@@ -21,3 +21,16 @@ body { background:#0875c5;font-family:Arial,"Malgun Gothic",sans-serif; }
 /* Hide the button while in full screen; F or Esc leaves full screen. */
 :fullscreen #fullscreen-button { display:none; }
 :-webkit-full-screen #fullscreen-button { display:none; }
+
+/* Circular end caps, not an ellipse: radius clamps to half the stage height.
+   Clip the entire live layer stack, without copying or scaling its canvases. */
+html[data-projection='capsule'],
+html[data-projection='capsule'] body { background:#000; cursor:none; }
+html[data-projection='capsule'] #aquarium-stage {
+  clip-path:inset(0 round 9999px);
+  border-radius:9999px;
+  background:#000;
+}
+/* F11 is browser fullscreen and does not match :fullscreen. Keep output clean
+   in either mode; the existing F key still provides a fullscreen shortcut. */
+html[data-projection='capsule'] #fullscreen-button { display:none; }

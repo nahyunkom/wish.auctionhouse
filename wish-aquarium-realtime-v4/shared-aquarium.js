@@ -15,6 +15,7 @@ function preload() {}
 // Aquarium size follows the view (portrait display or rotated projector).
 const viewW = () => window.AquariumView ? AquariumView.width() : windowWidth;
 const viewH = () => window.AquariumView ? AquariumView.height() : windowHeight;
+const viewDensity = () => window.AquariumView ? AquariumView.density() : Math.min(window.devicePixelRatio || 1, 1.75);
 const portraitView = () => viewH() > viewW() * 1.05;
 // Creature scale comes from the shorter side, so portrait keeps landscape sizes.
 const sizeBasis = () => Math.min(viewW(), viewH());
@@ -61,7 +62,7 @@ function setup() {
   const canvas = createCanvas(viewW(), viewH());
   canvas.parent('canvas-host');
   pixelRenderer = AquariumSprite.createRenderer(document.querySelector('#canvas-host'));
-  pixelDensity(Math.min(window.devicePixelRatio || 1, 1.75));
+  pixelDensity(viewDensity());
   frameRate(60);
   imageMode(CENTER);
   noStroke();
@@ -73,7 +74,7 @@ function draw() {
   // Clear every frame: screen blending over old pixels bleaches PNG colors.
   AquariumEnvironment.background(drawingContext,width,height,millis()/1000);
   // Water is rendered in real time; no photograph is used.
-  if(pixelRenderer)pixelRenderer.begin(width,height,Math.min(window.devicePixelRatio||1,1.75),AquariumEnvironment.composite());
+  if(pixelRenderer)pixelRenderer.begin(width,height,viewDensity(),AquariumEnvironment.composite());
   for (const swimmer of [...residentSwimmers,...swimmers].sort((a,b)=>b.depth-a.depth)) {
     swimmer.update();
     swimmer.draw();
@@ -392,6 +393,7 @@ function connectAquarium() {
 
 function windowResized() {
   if (window.AquariumView) AquariumView.apply();
+  pixelDensity(viewDensity());
   resizeCanvas(viewW(), viewH());
   for (const swimmer of residentSwimmers) {
     swimmer.baseY = height * residentY(swimmer.data, swimmer.seed);
