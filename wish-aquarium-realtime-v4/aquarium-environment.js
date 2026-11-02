@@ -355,9 +355,9 @@ function drawCurtain(ctx,w,h,seconds,dt){
  if(seconds>=nextSurge){surgeTarget=1;nextSurge=seconds+5+rand()*7;}
  if(surgeTarget&&surge>.97)surgeTarget=0;
  surge+=(surgeTarget-surge)*Math.min(1,dt*(surgeTarget?.9:.28));
- const rate=Math.min(420,(w*h)/3000)*(1+surge*2.2);
+ const rate=Math.min(300,(w*h)/4200)*(1+surge*1.8);
  const spawn=rate*dt;
- for(let i=0;i<spawn&&curtain.length<720;i++){
+ for(let i=0;i<spawn&&curtain.length<440;i++){
   if(rand()>spawn-i)break;
   const g=(rand()+rand()+rand()-1.5)/1.5*(1+surge*.6);   // roughly gaussian; widens in a surge
   curtain.push({off:g,y:h+4+rand()*20,vy:(80+rand()*130)*(1+surge*.7),r:.5+rand()*rand()*(2.3+surge*1.4),ph:rand()*6.28,wob:3+rand()*9,age:0,
@@ -374,8 +374,8 @@ function drawCurtain(ctx,w,h,seconds,dt){
   const open=Math.min(1,age/1.2)*Math.min(1,Math.max(0,(P.life-age)/2));
   if(age>P.life&&!P.parts.length){plumes.splice(k,1);continue;}
   if(Math.abs(P.x-.475)<.1)P.x+=P.x<.475?-.12:.12;
-  const n=Math.min(160,(w*h)/9000)*open*dt*(1+surge);
-  for(let i=0;i<n&&P.parts.length<220;i++){
+  const n=Math.min(110,(w*h)/13000)*open*dt*(1+surge);
+  for(let i=0;i<n&&P.parts.length<120;i++){
    if(rand()>n-i)break;
    P.parts.push({off:(rand()+rand()-1)*1.2,y:h+4+rand()*14,vy:90+rand()*140,r:.5+rand()*rand()*1.9,ph:rand()*6.28,wob:3+rand()*8,age:0,spin:6+rand()*10});
   }
@@ -391,7 +391,7 @@ function drawCurtain(ctx,w,h,seconds,dt){
  ctx.globalAlpha=1;
 }
 function spark(x,y,n,force){
- for(let i=0;i<n&&sparks.length<260;i++){const a=rand()*6.28,v=(20+rand()*80)*(force||1);
+ for(let i=0;i<n&&sparks.length<140;i++){const a=rand()*6.28,v=(20+rand()*80)*(force||1);
   sparks.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v*.5-10,r:.6+rand()*1.3,age:0,life:.5+rand()*.9});}
 }
 // One rising column of tiny bubbles: they accelerate as they rise, spiral, flash as they turn.
@@ -410,7 +410,7 @@ function drawColumn(ctx,list,w,h,seconds,dt,centerX,spread,strength){
   const g=glowSprite(b.r*(3.4+core*2.2+surge*1.2));
   ctx.globalAlpha=Math.min(1,(.38+.62*core)*(.45+.75*turn)*fade*strength*(1+surge*.35));
   ctx.drawImage(g,x-g.width/2,b.y-g.height/2);
-  if(turn>.7&&b.r>1.1){
+  if(turn>.75&&b.r>1.4){
    const f=irisSprite(b.r*2.2);ctx.globalAlpha=Math.min(1,(turn-.7)*2.4*fade*strength);
    ctx.drawImage(f,x-f.width/2-b.r*.3,b.y-f.height/2-b.r*.35);
   }
@@ -517,7 +517,7 @@ function drawBirths(ctx,w,h,seconds,dt){
 }
 // depth z: 0 near the glass, 1 far away.
 function spawnBubble(x,y,z,options){
- if(bubbles.length>170)return;
+ if(bubbles.length>120)return;
  options=options||{};
  const r=options.r||(.7+rand()*rand()*2.4)*(1.35-z*.75);
  bubbles.push({x,y,y0:y,z,r,age:0,
@@ -571,12 +571,12 @@ function foreground(w,h,seconds){
   // Luminous wake: a short thread of light that dissolves behind it.
   b.trail.push(x,b.y);if(b.trail.length>36)b.trail.splice(0,2);
   if(b.r<6&&b.trail.length>4){
+   // One stroke per wake keeps many bubbles cheap to draw.
    ctx.lineCap='round';ctx.lineWidth=Math.max(.5,b.r*.45);
-   for(let k=2;k<b.trail.length;k+=2){
-    const a=k/b.trail.length;
-    ctx.strokeStyle='rgba(120,225,240,'+(a*a*.24*light*fade*depthFade).toFixed(3)+')';
-    ctx.beginPath();ctx.moveTo(b.trail[k-2],b.trail[k-1]);ctx.lineTo(b.trail[k],b.trail[k+1]);ctx.stroke();
-   }
+   ctx.strokeStyle='rgba(120,225,240,'+(.09*light*fade*depthFade).toFixed(3)+')';
+   const n=b.trail.length;ctx.beginPath();ctx.moveTo(b.trail[Math.floor(n*.4)&~1],b.trail[(Math.floor(n*.4)&~1)+1]);
+   for(let k=(Math.floor(n*.4)&~1)+4;k<n;k+=4)ctx.lineTo(b.trail[k],b.trail[k+1]);
+   ctx.lineTo(b.trail[n-2],b.trail[n-1]);ctx.stroke();
   }
   if(b.r>=6){
    // Out-of-focus bokeh: an even disc of light with a slightly brighter edge.
