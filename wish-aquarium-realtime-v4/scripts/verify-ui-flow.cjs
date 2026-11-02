@@ -15,21 +15,25 @@ const context={
   navigator:{},URL,fetch:()=>{throw new Error('Unexpected network access in UI verification.')},setTimeout:()=>1,clearTimeout(){}
 };
 vm.createContext(context);
-for(const name of ['data.js','catalog-ui.js','app.js'])vm.runInContext(fs.readFileSync(path.join(root,name),'utf8'),context,{filename:name});
+for(const name of ['data.js','creature-names.js','catalog-ui.js','app.js'])vm.runInContext(fs.readFileSync(path.join(root,name),'utf8'),context,{filename:name});
 assert.ok(app.innerHTML.includes('수족관 들어가기'));
 vm.runInContext('answers=[0,0,0,0,0,0]; showWishDetails();',context);
-for(const direction of model.directions(0))assert.ok(app.innerHTML.includes(direction.name));
+for(const direction of model.directions(0))assert.ok(app.innerHTML.includes(vm.runInContext('wishDescriptions',context)[direction.name]),direction.name);
 assert.ok(!app.innerHTML.includes('data-wish-index="24"'));
 vm.runInContext('showWishDetails(true);',context);
-for(const direction of model.directions())assert.ok(app.innerHTML.includes(direction.name));
+for(const direction of model.directions())assert.ok(app.innerHTML.includes(vm.runInContext('wishDescriptions',context)[direction.name]),direction.name);
+assert.ok(!/<strong>[^<]*형<\/strong>/.test(app.innerHTML),'Choices are not type labels.');
+const blank=new Set(['WC-dbd94f7b5b95','WC-70290cf51171']);
 for(const entry of catalog.entries){
+  if(blank.has(entry.id)){vm.runInContext(`selectedWishType=${JSON.stringify(entry.wishType)};selectedCatalogId=null;showMethodDetails();`,context);assert.ok(!app.innerHTML.includes(entry.id),'Empty images are never offered.');continue;}
   vm.runInContext(`selectedWishType=${JSON.stringify(entry.wishType)};selectedCatalogId=${JSON.stringify(entry.id)};showMethodDetails();`,context);
   assert.ok(app.innerHTML.includes(`data-creature-id="${entry.id}"`),entry.folder);
   vm.runInContext('showResult();',context);
   assert.ok(app.innerHTML.includes(entry.imageUrl),entry.folder+' PNG');
   assert.ok(app.innerHTML.includes(entry.id),entry.folder+' ID');
-  assert.ok(app.innerHTML.includes(entry.wishType),entry.folder+' wish type');
-  assert.ok(app.innerHTML.includes(entry.methodType),entry.folder+' method type');
+  const named=vm.runInContext(`creatureNames[${JSON.stringify(entry.id)}]`,context);
+  assert.ok(named&&app.innerHTML.includes(named.ko),entry.folder+' creature name');
+  assert.ok(!app.innerHTML.includes('<h1>'+entry.wishType),entry.folder+' no type label title');
   assert.ok(!app.innerHTML.includes('assets/creature-'));
   assert.equal((app.innerHTML.match(/<video\b/g)||[]).length,1,'Load only the selected result video.');
   vm.runInContext('releaseCreature();',context); // Offline: must not create a fake success.

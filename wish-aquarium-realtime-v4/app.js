@@ -240,9 +240,9 @@ function showResult() {
         <div class="result-info">
           <div class="result-title">
             <div class="eyebrow">탐사 완료 — 당신의 소망생물</div>
-            <h1>${escapeHtml(entry.wishType)}<br><span class="result-method-title">${escapeHtml(entry.methodType)}</span></h1>
+            <h1>${escapeHtml(creatureName(entry))}<br><span class="result-method-title" lang="la"><i>${escapeHtml(creatureLatin(entry))}</i></span></h1>
             <p class="result-lead">${escapeHtml(wishDescriptions[entry.wishType])}<br><strong>${escapeHtml(methodDescriptions[entry.methodType])}</strong></p>
-            <div class="chips"><span class="chip">${escapeHtml(entry.wishCategory)}</span><span class="chip">${escapeHtml(ways[way].label)}</span></div>
+            <div class="chips"><span class="chip">${escapeHtml(entry.wishCategory)}</span></div>
           </div>
           <div class="record">
             <div class="record-item"><h3>당신이 품은 소망</h3><p>${escapeHtml(wishDescriptions[entry.wishType])}</p></div>
@@ -466,7 +466,8 @@ async function saveCreatureImage() {
   try {
     const blob = await createResultCardBlob();
     if (currentResult !== resultSnapshot) return;
-    const safeName = resultSnapshot.creature.name.replace(/[\\/:*?"<>|]/g, '-');
+    const label = typeof creatureName === 'function' && typeof creatureNames !== 'undefined' && creatureNames[resultSnapshot.creature.id] ? creatureNames[resultSnapshot.creature.id].ko : resultSnapshot.creature.name;
+    const safeName = label.replace(/[\\/:*?"<>|]/g, '-');
     const filename = `소망경매장_${safeName}_${resultSnapshot.creature.id}.png`;
     const file = new File([blob], filename, { type: 'image/png' });
     let canShare = false;

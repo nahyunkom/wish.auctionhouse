@@ -21,7 +21,7 @@ const context={WishCatalog:model,console,Event:class{},AbortController,
  fetch:async()=>({ok:true,json:async()=>({total:0,retentionHours:6,directions:Array.from({length:7},()=>({count:0}))})})
 };
 vm.createContext(context);
-for(const file of ['data.js','catalog-ui.js','app.js','journey.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
+for(const file of ['data.js','creature-names.js','catalog-ui.js','app.js','journey.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
 const run=code=>vm.runInContext(code,context);
 assert.ok(element('#start').innerHTML.includes('소망경매장 입장하기'));
 element('#start').onclick();assert.ok(app.innerHTML.includes('내 생물 보관함'));
@@ -35,16 +35,13 @@ element('#seed-hold').onkeydown({code:'Enter',preventDefault(){}});element('#see
 run('answers[3]=0;');element('#next').onclick();assert.equal(run('step'),4);
 run('answers[4]=0;');element('#next').onclick();assert.equal(run('step'),5);
 run('answers[5]=0;');element('#next').onclick();assert.ok(app.innerHTML.includes('data-wish-index='));
+assert.ok(!/[가-힣]형</.test(app.innerHTML.replace(/<small>[^<]*<\/small>/g,'')),'Wish choices read as sentences, not type labels.');
 run('selectedCatalogId='+JSON.stringify(entries[0].id)+'; selectedWishType='+JSON.stringify(entries[0].wishType)+'; discover();');
-assert.ok(app.innerHTML.includes(entries[0].imageUrl));assert.ok(!app.innerHTML.includes('data-result-tank'));
-element('#encounter-next').onclick();assert.ok(app.innerHTML.includes('wish-rhythm'));
-element('#wish-rhythm').oninput({target:{value:'4'}});element('#rhythm-next').onclick();assert.ok(app.innerHTML.includes('data-care='));
-element('#care-next').onclick();assert.ok(app.innerHTML.includes('wish-letter'));
-element('#wish-letter').oninput({target:{value:'<script>bad()</script>'}});element('#letter-next').onclick();
+assert.ok(app.innerHTML.includes('data-result-tank'),'Choosing a way shows the result straight away.');
 assert.ok(app.innerHTML.includes(entries[0].id));assert.equal((app.innerHTML.match(/<video\b/g)||[]).length,1);
-assert.ok(element('#app .record').innerHTML.includes('&lt;script&gt;'));
+assert.ok(app.innerHTML.includes(run('creatureName(WishCatalog.get('+JSON.stringify(entries[0].id)+'))')),'The result is titled with the creature name.');
+assert.ok(!app.innerHTML.includes('<h1>'+entries[0].wishType),'The result title is not the type label.');
 assert.ok(element('#app .record').innerHTML.includes('&lt;img'));
-assert.ok(element('#app .record').innerHTML.includes('잠들기 전'));
 assert.equal(stored.size,0,'Private notes and answers must not be stored automatically.');
 element('#keep-local').onclick();
 const saved=JSON.parse(stored.get('wish-auction-collection-v1'));
@@ -55,7 +52,7 @@ run('window.WishJourney.showFieldGuide(6);');assert.ok(app.innerHTML.includes('�
 run('window.WishJourney.showCollection();');assert.ok(app.innerHTML.includes(entries[0].imageUrl));
 element('#clear-collection').onclick();assert.equal(stored.size,0);
 run('home();');assert.equal(run('currentResult'),null);assert.equal(run('selectedCatalogId'),null);
-run('selectedCatalogId='+JSON.stringify(entries[0].id)+';showResult();');assert.ok(!element('#app .record').innerHTML.includes('&lt;script&gt;'),'New visitors must not see previous private notes.');
+run('selectedCatalogId='+JSON.stringify(entries[0].id)+';showResult();');assert.ok(!element('#app .record').innerHTML.includes('&lt;img'),'New visitors must not see previous private notes.');
 run('selectedCatalogId="missing";showResult();');assert.ok(app.innerHTML.includes('data-wish-index='),'Unknown results never fabricate an image.');
 assert.equal(run('currentResult'),null);
 run('selectedCatalogId='+JSON.stringify(entries[0].id)+';showResult();');

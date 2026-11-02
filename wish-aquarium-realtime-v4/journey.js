@@ -112,43 +112,11 @@
     };
     orb.onclick=()=>{buttons[answers[step]??0].focus();$('#current-feedback').textContent='아래 방식 중 하나를 눌러 선택해 주세요.';};
   }
+  // After choosing a way, the result appears straight away.
   discover = function(){
-    const entry=WishCatalog.get(selectedCatalogId);if(!entry){showWishDetails();return;}
-    shell('03 / YOUR WISH TAKES SHAPE','당신의 소망에,<br>하나의 모습이 생겼어요.',
-      '<div class="encounter"><figure><img src="'+entry.imageUrl+'" alt="'+escapeHtml(entry.folder)+'"><figcaption>'+escapeHtml(entry.id)+' / WISH SPECIMEN</figcaption></figure><div><span class="overline">FIRST ENCOUNTER</span><h2>'+escapeHtml(entry.wishType)+'</h2><p>'+escapeHtml(wishDescriptions[entry.wishType]||entry.wishCategory)+'</p><span class="fine-rule"></span><h3>'+escapeHtml(entry.methodType)+'</h3><p>'+escapeHtml(methodDescriptions[entry.methodType]||'')+'</p><p class="quiet-note">당신의 선택과 연결된 생물이에요.<br>형태를 바꾸려면 소망이나 키우는 방식을 다시 살펴보세요.</p></div></div>',
-      backButton('encounter-back','다른 방식 살펴보기')+nextButton('encounter-next','이 생물과 함께하기'),'encounter-page');
-    $('#encounter-back').onclick=showMethodDetails;$('#encounter-next').onclick=showRhythm;
+    if(!WishCatalog.get(selectedCatalogId)){showWishDetails();return;}
+    showResult();
   };
-  function showRhythm(){
-    const labels=['잠에서 깨어날 때','하루를 시작할 때','마음이 흔들릴 때','잠시 쉬어갈 때','잠들기 전'];
-    shell('04 / WHEN TO REMEMBER','당신의 하루 중,<br>언제 이 소망을 떠올릴까요?',
-      '<p class="page-lead">빛을 움직여 마음이 닿는 시간을 찾아보세요.<br>이 선택은 생물의 유형을 바꾸지 않아요.</p><div class="rhythm-experiment"><div class="rhythm-arc" aria-hidden="true"><span>새벽</span><i id="rhythm-glow"></i><span>밤</span></div><label class="rhythm-answer" id="rhythm-answer" for="wish-rhythm">'+labels[story.rhythm]+'</label><input type="range" id="wish-rhythm" min="0" max="4" step="1" value="'+story.rhythm+'" aria-valuetext="'+labels[story.rhythm]+'"><div class="range-labels"><span>하루의 시작</span><span>하루의 끝</span></div></div>',
-      backButton('rhythm-back')+nextButton('rhythm-next','나의 돌봄 정하기'),'rhythm-page');
-    const sync=()=>{$('#rhythm-answer').textContent=labels[story.rhythm];$('#wish-rhythm').setAttribute('aria-valuetext',labels[story.rhythm]);$('#rhythm-glow').style.left=(story.rhythm*25)+'%';};sync();
-    $('#wish-rhythm').oninput=e=>{story.rhythm=Number(e.target.value);sync();};
-    $('#rhythm-back').onclick=discover;$('#rhythm-next').onclick=showCare;
-  }
-  function showCare(){
-    const options=['작은 행동을 반복하기','나에게 쉴 틈을 주기','누군가와 마음 나누기','기록하며 돌아보기','새로운 일 시도하기'];
-    shell('05 / A WAY TO GROW','이 소망을 위해,<br>어떤 마음을 내어줄 수 있나요?',
-      '<p class="page-lead">소망은 한 번의 다짐보다 작은 돌봄으로 자라요.<br>지금 할 수 있는 일을 세 가지까지 골라주세요.</p><div class="care-options">'+options.map((x,i)=>'<button class="care-card '+(story.care.includes(x)?'selected':'')+'" data-care="'+i+'" aria-pressed="'+story.care.includes(x)+'"><span class="care-symbol" aria-hidden="true">'+['∴','◒','∞','≋','↗'][i]+'</span><span>'+x+'</span><i aria-hidden="true">＋</i></button>').join('')+'</div><p class="care-status" id="care-status" aria-live="polite"></p>',
-      backButton('care-back')+nextButton('care-next','나에게 한마디 남기기'),'care-page');
-    $('#care-next').disabled=!story.care.length;
-    app.querySelectorAll('[data-care]').forEach(button=>button.onclick=()=>{
-      const value=options[Number(button.dataset.care)],found=story.care.indexOf(value);
-      if(found>=0)story.care.splice(found,1);else if(story.care.length<3)story.care.push(value);else{$('#care-status').textContent='지금 실천할 수 있는 세 가지에 마음을 모아볼까요?';return;}
-      button.classList.toggle('selected',story.care.includes(value));button.setAttribute('aria-pressed',String(story.care.includes(value)));
-      $('#care-status').textContent=story.care.length+' / 3개의 돌봄을 골랐어요.';$('#care-next').disabled=!story.care.length;
-    });
-    $('#care-back').onclick=showRhythm;$('#care-next').onclick=showLetter;
-  }
-  function showLetter(){
-    shell('06 / A NOTE TO YOURSELF','이 소망을 품은 나에게,<br>어떤 말을 건네고 싶나요?',
-      '<div class="writing-layout"><p class="page-lead">쉽게 잊지 않았으면 하는 한마디.<br>생물을 다시 만날 때, 이 마음도 함께 떠올려주세요.</p><div class="writing-field"><label for="wish-letter">나에게 남기는 말 <span>선택 입력</span></label><textarea id="wish-letter" maxlength="160" placeholder="예: 조금 느려도 괜찮아. 네가 좋아하는 걸 잊지 마.">'+escapeHtml(story.letter)+'</textarea><div class="field-meta"><span>글은 이번 체험 화면에만 남아요. 방류 시 전송되지 않아요.</span><output id="letter-count" for="wish-letter">'+story.letter.length+' / 160</output></div></div></div>',
-      backButton('letter-back')+nextButton('letter-next','나의 소망생물 만나기'),'letter-page');
-    $('#wish-letter').oninput=e=>{story.letter=e.target.value;$('#letter-count').textContent=story.letter.length+' / 160';};
-    $('#letter-back').onclick=showCare;$('#letter-next').onclick=showResult;
-  }
   showResult = function(){
     resetScene();document.body.dataset.journey='result';
     if(!WishCatalog.get(selectedCatalogId)){currentResult=null;showWishDetails();return;}
@@ -157,10 +125,8 @@
     if(!currentResult)return;
     if(previous?.entry.id===currentResult.entry.id){currentResult.clientReleaseId=previous.clientReleaseId;realtime.released=wasReleased;syncRealtimeControls();}
     const entry=currentResult.entry;
-    const careText=story.care.map(x=>escapeHtml(x)).join(' · ');
-    const rhythm=['잠에서 깨어날 때','하루를 시작할 때','마음이 흔들릴 때','잠시 쉬어갈 때','잠들기 전'][story.rhythm];
     const record=app.querySelector('.record');
-    record.innerHTML='<div class="record-item"><h3>이 마음이 시작된 순간</h3><p>'+escapeHtml(story.moment||'아직 말로 다 담지 못한, 지금의 마음.')+'</p></div><div class="record-item"><h3>소망을 돌보는 나만의 리듬</h3><p>'+rhythm+' · '+careText+'</p></div>'+(story.letter?'<div class="record-item personal-letter"><h3>이 소망을 품은 나에게</h3><p>“'+escapeHtml(story.letter)+'”</p></div>':'');
+    record.innerHTML='<div class="record-item"><h3>이 마음이 시작된 순간</h3><p>'+escapeHtml(story.moment||'아직 말로 다 담지 못한, 지금의 마음.')+'</p></div><div class="record-item"><h3>이 생물이 품은 소망</h3><p>'+escapeHtml(wishWhispers[entry.wishType]||wishDescriptions[entry.wishType]||'')+'</p></div><div class="record-item"><h3>이 생물이 자라는 방식</h3><p>'+escapeHtml(methodWhispers[entry.methodType]||methodDescriptions[entry.methodType]||'')+'</p></div>';
     const panel=app.querySelector('.result-actions-panel');
     panel.querySelector('.overline').textContent='FROM MY WISH TO OUR OCEAN';
     $('#result-actions-title').textContent='혼자 품던 소망을, 함께 살아가는 소망으로.';
@@ -178,11 +144,11 @@
     $('#restart').onclick=home;syncRealtimeControls();
   };
   function collectionCard(entry){
-    return '<button class="specimen-card" data-open-specimen="'+entry.id+'"><div><img loading="lazy" decoding="async" src="'+entry.imageUrl+'" alt="'+escapeHtml(entry.folder)+'"></div><span>'+escapeHtml(entry.id)+'</span><h2>'+escapeHtml(entry.wishType)+'</h2><p>'+escapeHtml(entry.methodType)+'</p></button>';
+    return '<button class="specimen-card" data-open-specimen="'+entry.id+'"><div><img loading="lazy" decoding="async" src="'+entry.imageUrl+'" alt="'+escapeHtml(creatureName(entry))+'"></div><span>'+escapeHtml(entry.id)+'</span><h2>'+escapeHtml(creatureName(entry))+'</h2><p>'+escapeHtml(wishDescriptions[entry.wishType]||'')+'</p></button>';
   }
   function openSpecimen(entry,back){
-    shell('THE FIELD GUIDE / '+entry.id,escapeHtml(entry.wishType),
-      '<div class="encounter"><figure><img src="'+entry.imageUrl+'" alt="'+escapeHtml(entry.folder)+'"><figcaption>'+escapeHtml(entry.methodType)+'</figcaption></figure><div><h2>'+escapeHtml(entry.wishCategory)+'</h2><p>'+escapeHtml(wishDescriptions[entry.wishType]||'')+'</p><h3>'+escapeHtml(entry.methodType)+'</h3><p>'+escapeHtml(methodDescriptions[entry.methodType]||'')+'</p><p class="quiet-note">도감은 생물을 살펴보는 곳이에요.<br>나의 생물은 소망 탐사를 통해 만나주세요.</p></div></div>',
+    shell('THE FIELD GUIDE / '+entry.id,escapeHtml(creatureName(entry)),
+      '<div class="encounter"><figure><img src="'+entry.imageUrl+'" alt="'+escapeHtml(creatureName(entry))+'"><figcaption lang="la"><i>'+escapeHtml(creatureLatin(entry))+'</i></figcaption></figure><div><h2>'+escapeHtml(entry.wishCategory)+'</h2><p>'+escapeHtml(wishDescriptions[entry.wishType]||'')+'</p><h3>'+escapeHtml(methodDescriptions[entry.methodType]||'')+'</h3><p>'+escapeHtml(methodWhispers[entry.methodType]||'')+'</p><p class="quiet-note">도감은 생물을 살펴보는 곳이에요.<br>나의 생물은 소망 탐사를 통해 만나주세요.</p></div></div>',
       backButton('specimen-back','목록으로')+nextButton('specimen-begin','나의 소망 발견하기'),'specimen-detail');
     $('#specimen-back').onclick=back;$('#specimen-begin').onclick=begin;
   }
@@ -200,7 +166,7 @@
   }
   function showFieldGuide(filter=collectionFilter,page=0){
     collectionFilter=filter;collectionPage=page;
-    const filtered=WishCatalog.entries.filter(x=>filter<0||x.situationIndex===filter),shown=filtered.slice(0,(page+1)*12);
+    const filtered=WishCatalog.entries.filter(x=>!blankCreatureIds.has(x.id)&&(filter<0||x.situationIndex===filter)),shown=filtered.slice(0,(page+1)*12);
     shell('THE FIELD GUIDE / '+WishCatalog.entries.length+' SPECIMENS','소망은 저마다,<br>다른 모습으로 살아갑니다.',
       '<p class="page-lead">실제로 제작된 소망생물의 기록을 살펴보세요.</p><div class="guide-filters" role="group" aria-label="소망 분류">'+[-1,0,1,2,3,4,5,6].map(i=>'<button class="'+(i===filter?'active':'')+'" data-filter="'+i+'" aria-pressed="'+(i===filter)+'">'+(i<0?'모든 소망':situations[i].label)+'</button>').join('')+'</div>'+(shown.length?'<div class="specimen-grid">'+shown.map(collectionCard).join('')+'</div>':'<div class="empty-water"><p>이 방향의 생물은 아직 준비 중이에요.<br>다른 소망의 생물을 살펴보세요.</p></div>')+(shown.length<filtered.length?'<button class="load-more" id="guide-more">생물 더 보기 ('+shown.length+' / '+filtered.length+') ＋</button>':''),
       backButton('guide-back','입구로')+nextButton('guide-begin','나의 소망 발견하기'),'guide-page');
@@ -236,7 +202,7 @@
   }
   const menu=document.querySelector('#journey-menu');if(menu)menu.onclick=showLobby;
   // A short, session-local letter is intentionally never sent to the server.
-  window.WishJourney={showLobby,showMoment,showSeed,showRhythm,showCare,showLetter,showFieldGuide,showCollection,showOceanReport,showFarewell};
+  window.WishJourney={showLobby,showMoment,showSeed,showFieldGuide,showCollection,showOceanReport,showFarewell};
   home();
 })();
 
