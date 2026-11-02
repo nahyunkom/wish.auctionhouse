@@ -649,7 +649,7 @@ function ringLight(x,y){
  return Math.min(1,v);
 }
 function presenceState(){return {x:presence.x,y:presence.y,energy:presence.energy};}
-root.AquariumEnvironment={background,texture,foreground,burst,birth,feel,presenceLight,ringLight,presenceState,composite:()=> 'source-over'};
+root.AquariumEnvironment={background,texture,foreground,burst,birth,feel,presenceLight,ringLight,presenceState,surgeLevel:()=>surge,composite:()=> 'source-over'};
 })(window);
 
 // Original catalog scenery: these are not visitor releases and never enter server statistics.

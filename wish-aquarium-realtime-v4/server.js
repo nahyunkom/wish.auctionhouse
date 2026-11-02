@@ -103,6 +103,7 @@ for (const filename of [
   'particles.js',
   'shared-aquarium.css',
   'shared-aquarium.js',
+  'aquarium-sound.js',
   'aquarium-sprite.js',
   'aquarium-environment.js'
 ]) {
