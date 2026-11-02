@@ -257,7 +257,11 @@ function texture(image){
 // shimmer as they turn, and leave a faint luminous wake that dissolves.
 // Additive light on its own canvas above the creatures. No images.
 let front=null,frontCtx=null,frontScale=1,lastFront=0,nextBreath=0;
-const bubbles=[],motes=[],glows=new Map(),dust=[],curtain=[],births=[];
+const bubbles=[],motes=[],glows=new Map(),dust=[],curtain=[],births=[],sparks=[];
+// The curtain breathes in surges: every few seconds the floor lets go a rush of light.
+let surge=0,surgeTarget=0,nextSurge=4;
+// Side plumes: smaller columns that open somewhere on the floor, roar for a while and close.
+const plumes=[];let nextPlume=6;
 // A visitor's presence (touch, pointer, later a depth camera) gathers light.
 // Everything follows it slowly; nothing jumps to the hand.
 const presence={x:0,y:0,tx:0,ty:0,energy:0,target:0,last:-9,seen:false,trail:[],moved:0,sinceDrop:0};
@@ -274,6 +278,8 @@ function feel(x,y,strength,pressed){
  const s=Math.min(1,Math.max(0,strength===undefined?1:strength));
  // A ring of light when the hand first meets the water, and now and then as it travels.
  if(pressed||presence.energy<.12&&s>.3||presence.sinceDrop>220){drop(x,y,pressed?1:.7*s);presence.sinceDrop=0;}
+ // A touch lets a little cloud of bubbles go from the hand.
+ if(pressed&&!motion.matches)for(let i=0;i<12;i++)spawnBubble(x+(rand()-.5)*40,y+(rand()-.5)*24,.1+rand()*.5,{speed:.9+rand()*.8,drift:(rand()-.5)*50});
  presence.tx=x;presence.ty=y;presence.target=s;presence.last=lastFront;
 }
 // Light plankton: faint glints spread through the water that drift toward a
@@ -309,6 +315,17 @@ function glowSprite(radius){
  grad.addColorStop(.5,'rgba(70,200,225,.16)');grad.addColorStop(1,'rgba(40,170,210,0)');
  g.fillStyle=grad;g.fillRect(0,0,size,size);glows.set(key,c);return c;
 }
+// A warmer, iridescent glint for the brightest moments of a turning bubble.
+const irises=new Map();
+function irisSprite(radius){
+ const key=Math.max(2,Math.round(radius));
+ if(irises.has(key))return irises.get(key);
+ const size=key*2+2,c=document.createElement('canvas');c.width=c.height=size;
+ const g=c.getContext('2d'),m=size/2,grad=g.createRadialGradient(m,m,0,m,m,key);
+ grad.addColorStop(0,'rgba(255,255,255,1)');grad.addColorStop(.2,'rgba(210,235,255,.6)');
+ grad.addColorStop(.5,'rgba(185,170,255,.16)');grad.addColorStop(1,'rgba(120,200,255,0)');
+ g.fillStyle=grad;g.fillRect(0,0,size,size);irises.set(key,c);return c;
+}
 // How much surface light reaches a point: strongest in the central shaft and near the top.
 function lightAt(x,y,w,h,t){
  const cx=.475+Math.sin(t*.21+y/h*3)*.012;
@@ -334,26 +351,70 @@ function curtainX(y,w,h,t){
  return w*(.475+Math.sin(t*.21+(1-v)*3)*.009+Math.sin((1-v)*9+t*.55)*.011+Math.sin(v*6+t*.5)*.018*(1-v));
 }
 function drawCurtain(ctx,w,h,seconds,dt){
- const rate=Math.min(260,(w*h)/4500);
+ // Surges: rise over ~1.5 s, hold, and ebb away over ~4 s.
+ if(seconds>=nextSurge){surgeTarget=1;nextSurge=seconds+5+rand()*7;}
+ if(surgeTarget&&surge>.97)surgeTarget=0;
+ surge+=(surgeTarget-surge)*Math.min(1,dt*(surgeTarget?.9:.28));
+ const rate=Math.min(420,(w*h)/3000)*(1+surge*2.2);
  const spawn=rate*dt;
- for(let i=0;i<spawn&&curtain.length<320;i++){
+ for(let i=0;i<spawn&&curtain.length<720;i++){
   if(rand()>spawn-i)break;
-  const g=(rand()+rand()+rand()-1.5)/1.5;          // roughly gaussian across the column
-  curtain.push({off:g,y:h+4+rand()*20,vy:70+rand()*110,r:.5+rand()*rand()*2.1,ph:rand()*6.28,wob:2+rand()*6,age:0});
+  const g=(rand()+rand()+rand()-1.5)/1.5*(1+surge*.6);   // roughly gaussian; widens in a surge
+  curtain.push({off:g,y:h+4+rand()*20,vy:(80+rand()*130)*(1+surge*.7),r:.5+rand()*rand()*(2.3+surge*1.4),ph:rand()*6.28,wob:3+rand()*9,age:0,
+   spin:6+rand()*10});
  }
- for(let i=curtain.length-1;i>=0;i--){
-  const b=curtain[i];b.age+=dt;b.y-=b.vy*dt*Math.min(1,.4+b.age*1.2);
-  if(b.y<-10){curtain.splice(i,1);continue;}
-  const v=b.y/h,width=w*(.03+(v)*.035);       // the plume narrows as it rises into the light
-  const x=curtainX(b.y,w,h,seconds)+b.off*width+Math.sin(b.age*7+b.ph)*b.wob*.4;
-  const glint=.55+.45*Math.pow(.5+.5*Math.sin(b.age*11+b.ph),3);
-  const fade=Math.min(1,b.age*3)*Math.min(1,b.y/(h*.12));
-  const core=Math.exp(-b.off*b.off*1.8);
-  const g=glowSprite(b.r*(3.2+core*2));
-  ctx.globalAlpha=Math.min(1,(.35+.6*core)*glint*fade);
-  ctx.drawImage(g,x-g.width/2,b.y-g.height/2);
+ drawColumn(ctx,curtain,w,h,seconds,dt,y=>curtainX(y,w,h,seconds),v=>w*(.03+v*.035),1);
+ // Side plumes open, rush and close.
+ if(seconds>=nextPlume&&plumes.length<2){
+  plumes.push({x:.12+rand()*.76,born:seconds,life:6+rand()*8,phase:rand()*6.28,parts:[]});
+  nextPlume=seconds+7+rand()*9;
+ }
+ for(let k=plumes.length-1;k>=0;k--){
+  const P=plumes[k],age=seconds-P.born;
+  const open=Math.min(1,age/1.2)*Math.min(1,Math.max(0,(P.life-age)/2));
+  if(age>P.life&&!P.parts.length){plumes.splice(k,1);continue;}
+  if(Math.abs(P.x-.475)<.1)P.x+=P.x<.475?-.12:.12;
+  const n=Math.min(160,(w*h)/9000)*open*dt*(1+surge);
+  for(let i=0;i<n&&P.parts.length<220;i++){
+   if(rand()>n-i)break;
+   P.parts.push({off:(rand()+rand()-1)*1.2,y:h+4+rand()*14,vy:90+rand()*140,r:.5+rand()*rand()*1.9,ph:rand()*6.28,wob:3+rand()*8,age:0,spin:6+rand()*10});
+  }
+  drawColumn(ctx,P.parts,w,h,seconds,dt,y=>w*P.x+Math.sin((1-y/h)*7+seconds*.8+P.phase)*w*.014,v=>w*(.012+v*.02),.75);
+ }
+ // Sparks: where risen bubbles meet the surface they scatter into brief points of light.
+ for(let i=sparks.length-1;i>=0;i--){
+  const k=sparks[i];k.age+=dt;if(k.age>k.life){sparks.splice(i,1);continue;}
+  k.x+=k.vx*dt;k.y+=k.vy*dt;k.vx*=Math.pow(.25,dt);k.vy*=Math.pow(.25,dt);
+  const a=(1-k.age/k.life);const g=irisSprite(k.r*(3+a*3));
+  ctx.globalAlpha=Math.min(1,a*a*.9);ctx.drawImage(g,k.x-g.width/2,k.y-g.height/2);
  }
  ctx.globalAlpha=1;
+}
+function spark(x,y,n,force){
+ for(let i=0;i<n&&sparks.length<260;i++){const a=rand()*6.28,v=(20+rand()*80)*(force||1);
+  sparks.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v*.5-10,r:.6+rand()*1.3,age:0,life:.5+rand()*.9});}
+}
+// One rising column of tiny bubbles: they accelerate as they rise, spiral, flash as they turn.
+function drawColumn(ctx,list,w,h,seconds,dt,centerX,spread,strength){
+ for(let i=list.length-1;i>=0;i--){
+  const b=list[i];b.age+=dt;
+  const speed=b.vy*Math.min(1.6,.45+b.age*.9);           // buoyancy: faster as it rises
+  b.y-=speed*dt;
+  if(b.y<h*.03){if(rand()<.08)spark(b.x||centerX(b.y),b.y,2,.6);list.splice(i,1);continue;}
+  const v=b.y/h,width=spread(v);
+  const coil=Math.sin(b.age*b.spin*.6+b.ph);
+  const x=centerX(b.y)+b.off*width+coil*b.wob*(.5+(1-v)*.9);b.x=x;
+  const turn=Math.pow(.5+.5*Math.sin(b.age*b.spin+b.ph),4);
+  const fade=Math.min(1,b.age*3)*Math.min(1,b.y/(h*.1));
+  const core=Math.exp(-b.off*b.off*1.6);
+  const g=glowSprite(b.r*(3.4+core*2.2+surge*1.2));
+  ctx.globalAlpha=Math.min(1,(.38+.62*core)*(.45+.75*turn)*fade*strength*(1+surge*.35));
+  ctx.drawImage(g,x-g.width/2,b.y-g.height/2);
+  if(turn>.7&&b.r>1.1){
+   const f=irisSprite(b.r*2.2);ctx.globalAlpha=Math.min(1,(turn-.7)*2.4*fade*strength);
+   ctx.drawImage(f,x-f.width/2-b.r*.3,b.y-f.height/2-b.r*.35);
+  }
+ }
 }
 // Birth of a released creature as a slow particle sculpture (about fifteen seconds):
 // thousands of fine points stream around the spot as three intertwining ribbons,
@@ -456,24 +517,25 @@ function drawBirths(ctx,w,h,seconds,dt){
 }
 // depth z: 0 near the glass, 1 far away.
 function spawnBubble(x,y,z,options){
- if(bubbles.length>70)return;
+ if(bubbles.length>170)return;
  options=options||{};
  const r=options.r||(.7+rand()*rand()*2.4)*(1.35-z*.75);
  bubbles.push({x,y,y0:y,z,r,age:0,
   speed:(options.speed||1)*(9+r*5)*(1.15-z*.5),
-  sway:2+rand()*6,swayFreq:.5+rand()*.9,phase:rand()*6.28,
+  sway:4+rand()*12,swayFreq:.9+rand()*1.6,phase:rand()*6.28,
   spin:1.5+rand()*2.5,drift:options.drift||0,trail:[]});
 }
 // A release breathes out a slow, rising veil of light around the creature.
 function burst(x,y){
  if(motion.matches||!Number.isFinite(x)||!Number.isFinite(y))return;
- for(let i=0;i<14;i++)spawnBubble(x+(rand()-.5)*70,y+(rand()-.5)*40,.15+rand()*.55,{speed:.7+rand()*.5,drift:(rand()-.5)*14});
+ for(let i=0;i<34;i++)spawnBubble(x+(rand()-.5)*90,y+(rand()-.5)*50,.1+rand()*.55,{speed:.8+rand()*.9,drift:(rand()-.5)*60});
+ spark(x,y,40,1.4);
 }
 // A breath: a few bubbles let go one after another from one place, slowly.
 function breath(w,h){
  const nearLight=rand()<.6;
  const x=nearLight?w*(.475+(rand()-.5)*.36):w*(.05+rand()*.9);
- const z=.2+rand()*.7,n=2+Math.floor(rand()*4),gap=.35+rand()*.5;
+ const z=.15+rand()*.7,n=3+Math.floor(rand()*7),gap=.25+rand()*.4;
  for(let i=0;i<n;i++)spawnBubble(x+(rand()-.5)*8,h+10+i*gap*(9+rand()*6),z+(rand()-.5)*.06);
 }
 function foreground(w,h,seconds){
@@ -483,9 +545,9 @@ function foreground(w,h,seconds){
  if(motion.matches){lastFront=seconds;return;}
  const dt=lastFront?Math.min(.1,Math.max(0,seconds-lastFront)):0;lastFront=seconds;
  if(!nextBreath)nextBreath=seconds+1+rand()*2;
- if(seconds>=nextBreath){breath(w,h);nextBreath=seconds+1.4+rand()*rand()*5;}
+ if(seconds>=nextBreath){breath(w,h);if(surge>.5)breath(w,h);nextBreath=seconds+.6+rand()*rand()*2.6;}
  // Rarely a single large bubble passes close to the glass: a slow, soft bokeh.
- if(rand()<dt*.012)spawnBubble(w*(.15+rand()*.7),h+60,0,{r:9+rand()*8,speed:.55});
+ if(rand()<dt*.05)spawnBubble(w*(.1+rand()*.8),h+60,0,{r:8+rand()*12,speed:.7+rand()*.5});
  ctx.globalCompositeOperation='lighter';
  updatePresence(seconds,dt);
  drawCurtain(ctx,w,h,seconds,dt);
@@ -494,11 +556,12 @@ function foreground(w,h,seconds){
  for(let i=bubbles.length-1;i>=0;i--){
   const b=bubbles[i];
   b.age+=dt;
-  b.y-=b.speed*Math.min(1,.3+b.age*.6)*dt;
+  b.y-=b.speed*Math.min(1.8,.35+b.age*.45)*dt;
   b.drift*=Math.pow(.4,dt);b.x+=b.drift*dt;
 
   const risen=Math.min(1,Math.max(0,(b.y0-b.y)/h));
   const x=b.x+Math.sin(b.age*b.swayFreq+b.phase)*b.sway*(.3+risen);
+  if(b.y<h*.04&&b.r<6){spark(x,b.y,3+Math.round(b.r*2),.8);bubbles.splice(i,1);continue;}
   if(b.y<-40){bubbles.splice(i,1);continue;}
   const light=lightAt(x,b.y,w,h,seconds);
   // A turning bubble catches the light in brief glints.
@@ -511,7 +574,7 @@ function foreground(w,h,seconds){
    ctx.lineCap='round';ctx.lineWidth=Math.max(.5,b.r*.45);
    for(let k=2;k<b.trail.length;k+=2){
     const a=k/b.trail.length;
-    ctx.strokeStyle='rgba(120,225,240,'+(a*a*.16*light*fade*depthFade).toFixed(3)+')';
+    ctx.strokeStyle='rgba(120,225,240,'+(a*a*.24*light*fade*depthFade).toFixed(3)+')';
     ctx.beginPath();ctx.moveTo(b.trail[k-2],b.trail[k-1]);ctx.lineTo(b.trail[k],b.trail[k+1]);ctx.stroke();
    }
   }
@@ -532,6 +595,8 @@ function foreground(w,h,seconds){
    const core=glowSprite(b.r*1.6);
    ctx.globalAlpha=Math.min(1,intensity*1.1);
    ctx.drawImage(core,x-core.width/2-b.r*.25,b.y-core.height/2-b.r*.3);
+   if(glint>.55){const f=irisSprite(b.r*3.2);ctx.globalAlpha=Math.min(1,(glint-.55)*2*fade*depthFade*(.5+light));
+    ctx.drawImage(f,x-f.width/2-b.r*.3,b.y-f.height/2-b.r*.4);}
    ctx.globalAlpha=1;
   }
  }
