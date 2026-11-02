@@ -17,3 +17,7 @@ body { background:#0875c5;font-family:Arial,"Malgun Gothic",sans-serif; }
 }
 #fullscreen-button:hover { background:rgba(0,56,101,.62); }
 #fullscreen-button:focus-visible { outline:2px solid #efffff;outline-offset:4px; }
+
+/* Hide the button while in full screen; F or Esc leaves full screen. */
+:fullscreen #fullscreen-button { display:none; }
+:-webkit-full-screen #fullscreen-button { display:none; }

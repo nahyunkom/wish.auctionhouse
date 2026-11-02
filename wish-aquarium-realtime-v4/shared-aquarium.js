@@ -424,4 +424,5 @@ document.addEventListener('fullscreenchange', () => {
   const button=document.querySelector('#fullscreen-button');
   const label=document.fullscreenElement ? '전체 화면 닫기' : '전체 화면';
   button.textContent=label;button.setAttribute('aria-label',label);
+  button.hidden=!!document.fullscreenElement;
 });
