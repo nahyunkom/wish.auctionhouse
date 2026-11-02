@@ -5,25 +5,30 @@
 // side while the computer still outputs landscape. A portrait display needs nothing.
 const view=(()=>{
  let rotation=0;
- let capsule=false,ratio=300/104;
+ let capsule=false,ratio=16/9;
  try{
   const params=new URLSearchParams(location.search),r=Number(params.get('rotate'));
   capsule=params.get('shape')==='capsule';
   const requested=Number(params.get('capsuleRatio'));
   if(Number.isFinite(requested)&&requested>=1.2&&requested<=6)ratio=requested;
-  // Physical projector rotation supplies the orientation in capsule mode.
-  rotation=capsule?0:r===90?90:(r===-90||r===270)?-90:0;
+  // Rotate the live content independently of the horizontal projection mask.
+  rotation=r===90?90:(r===-90||r===270)?-90:0;
  }catch(_){}
- const width=()=>capsule?Math.floor(Math.min(innerWidth*.96,innerHeight*.9*ratio)):rotation?innerHeight:innerWidth;
- const height=()=>capsule?Math.max(1,Math.round(width()/ratio)):rotation?innerWidth:innerHeight;
- const left=()=>Math.round((innerWidth-width())/2);
- const top=()=>Math.round((innerHeight-height())/2);
+ const outputW=()=>capsule?Math.floor(Math.min(innerWidth*.96,innerHeight*.9*ratio)):innerWidth;
+ const outputH=()=>capsule?Math.max(1,Math.round(outputW()/ratio)):innerHeight;
+ const width=()=>rotation?outputH():outputW();
+ const height=()=>rotation?outputW():outputH();
+ const left=()=>capsule?Math.round((innerWidth-outputW())/2):0;
+ const top=()=>capsule?Math.round((innerHeight-outputH())/2):0;
  const density=()=>Math.min(root.devicePixelRatio||1,capsule?2:1.75);
  function apply(){
   const stage=document.querySelector('#aquarium-stage');if(!stage)return;
   if(capsule){
    document.documentElement.dataset.projection='capsule';
-   Object.assign(stage.style,{inset:'auto',left:left()+'px',top:top()+'px',width:width()+'px',height:height()+'px',transform:'none'});
+   const mask=document.querySelector('#projection-mask');
+   Object.assign(mask.style,{left:left()+'px',top:top()+'px',width:outputW()+'px',height:outputH()+'px'});
+   Object.assign(stage.style,{inset:'auto',left:'0',top:'0',width:width()+'px',height:height()+'px',transformOrigin:'0 0',
+    transform:rotation===90?'translate('+outputW()+'px,0) rotate(90deg)':rotation===-90?'translate(0,'+outputH()+'px) rotate(-90deg)':'none'});
    return;
   }
   if(!rotation)return;
@@ -31,7 +36,7 @@ const view=(()=>{
    transform:rotation===90?'translate('+innerWidth+'px,0) rotate(90deg)':'translate(0,'+innerHeight+'px) rotate(-90deg)'});
  }
  // Screen coordinates (pointer events) to aquarium coordinates.
- function toStage(x,y){return capsule?{x:x-left(),y:y-top()}:rotation===90?{x:y,y:innerWidth-x}:rotation===-90?{x:innerHeight-y,y:x}:{x,y};}
+ function toStage(x,y){x-=left();y-=top();return rotation===90?{x:y,y:outputW()-x}:rotation===-90?{x:outputH()-y,y:x}:{x,y};}
  return {get rotation(){return rotation;},capsule,width,height,density,apply,toStage,portrait:()=>height()>width()*1.05};
 })();
 root.AquariumView=view;
