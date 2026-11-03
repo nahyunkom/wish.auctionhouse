@@ -5,21 +5,36 @@
 // side while the computer still outputs landscape. A portrait display needs nothing.
 const view=(()=>{
  let rotation=0;
- let capsule=false,ratio=16/9;
+ let capsule=false,ratio=16/9,scale=.95,bleed=true,shiftX=0,shiftY=0,calibrating=false;
+ const CAL_KEY='wish-capsule-calibration';
  try{
   const params=new URLSearchParams(location.search),r=Number(params.get('rotate'));
   capsule=params.get('shape')==='capsule';
   const requested=Number(params.get('capsuleRatio'));
   if(Number.isFinite(requested)&&requested>=1.2&&requested<=6)ratio=requested;
+  // capsuleScale: size of the capsule on screen (default .95; the soft edge takes a little more).
+  const size=Number(params.get('capsuleScale'));
+  if(params.has('capsuleScale')&&Number.isFinite(size)&&size>=.4&&size<=1.15)scale=size;
+  // edge=sharp keeps the clean cut; by default the edge bleeds like water into the dark.
+  bleed=params.get('edge')!=='sharp';
+  // Saved on-site calibration (C key) for this computer; URL values win over it.
+  try{const saved=JSON.parse(root.localStorage&&root.localStorage.getItem(CAL_KEY)||'null');
+   if(saved&&Number.isFinite(saved.scale)&&saved.scale>=.4&&saved.scale<=1.15)scale=saved.scale;
+   if(saved&&Number.isFinite(saved.x)&&Math.abs(saved.x)<=.3)shiftX=saved.x;
+   if(saved&&Number.isFinite(saved.y)&&Math.abs(saved.y)<=.3)shiftY=saved.y;}catch(_){}
+  if(params.has('capsuleScale')&&Number.isFinite(size)&&size>=.4&&size<=1.15)scale=size;
+  const sx=Number(params.get('capsuleX')),sy=Number(params.get('capsuleY'));
+  if(params.has('capsuleX')&&Number.isFinite(sx)&&Math.abs(sx)<=30)shiftX=sx/100;
+  if(params.has('capsuleY')&&Number.isFinite(sy)&&Math.abs(sy)<=30)shiftY=sy/100;
   // Rotate the live content independently of the horizontal projection mask.
   rotation=r===90?90:(r===-90||r===270)?-90:0;
  }catch(_){}
- const outputW=()=>capsule?Math.floor(Math.min(innerWidth*.96,innerHeight*.9*ratio)):innerWidth;
+ const outputW=()=>capsule?Math.floor(Math.min(innerWidth*.96,innerHeight*.9*ratio)*scale):innerWidth;
  const outputH=()=>capsule?Math.max(1,Math.round(outputW()/ratio)):innerHeight;
  const width=()=>rotation?outputH():outputW();
  const height=()=>rotation?outputW():outputH();
- const left=()=>capsule?Math.round((innerWidth-outputW())/2):0;
- const top=()=>capsule?Math.round((innerHeight-outputH())/2):0;
+ const left=()=>capsule?Math.round((innerWidth-outputW())/2+shiftX*innerWidth):0;
+ const top=()=>capsule?Math.round((innerHeight-outputH())/2+shiftY*innerHeight):0;
  const density=()=>Math.min(root.devicePixelRatio||1,capsule?2:1.75);
  function apply(){
   const stage=document.querySelector('#aquarium-stage');if(!stage)return;
@@ -27,6 +42,7 @@ const view=(()=>{
    document.documentElement.dataset.projection='capsule';
    const mask=document.querySelector('#projection-mask');
    Object.assign(mask.style,{left:left()+'px',top:top()+'px',width:outputW()+'px',height:outputH()+'px'});
+   if(bleed){document.documentElement.dataset.edge='bleed';startBleed();}
    Object.assign(stage.style,{inset:'auto',left:'0',top:'0',width:width()+'px',height:height()+'px',transformOrigin:'0 0',
     transform:rotation===90?'translate('+outputW()+'px,0) rotate(90deg)':rotation===-90?'translate(0,'+outputH()+'px) rotate(-90deg)':'none'});
    return;
@@ -37,7 +53,79 @@ const view=(()=>{
  }
  // Screen coordinates (pointer events) to aquarium coordinates.
  function toStage(x,y){x-=left();y-=top();return rotation===90?{x:y,y:outputW()-x}:rotation===-90?{x:outputH()-y,y:x}:{x,y};}
- return {get rotation(){return rotation;},capsule,width,height,density,apply,toStage,portrait:()=>height()>width()*1.05};
+ // ---- Water-bleed edge: the capsule does not end in a clean line. Its rim breathes,
+ // seeps outward in slow lobes and dissolves into the dark, like water soaking into paper.
+ // Drawn at quarter resolution over the projection and scaled up (the scaling is the softness).
+ let bleedCanvas=null,bleedCtx=null,lastBleed=0;
+ const lobes=[];for(let i=0;i<5;i++)lobes.push({u:Math.random(),speed:(Math.random()-.5)*.012,phase:Math.random()*6.28,width:.04+Math.random()*.05});
+ function rim(u,t,R,L){
+  // Point on the stadium perimeter (u 0..1) and its outward normal.
+  const per=4*L+2*Math.PI*R;let d=u*per;
+  if(d<L*2){return {x:-L+d,y:-R,nx:0,ny:-1};}d-=2*L;
+  if(d<Math.PI*R){const a=-Math.PI/2+d/R;return {x:L+Math.cos(a)*R,y:Math.sin(a)*R,nx:Math.cos(a),ny:Math.sin(a)};}d-=Math.PI*R;
+  if(d<L*2){return {x:L-d,y:R,nx:0,ny:1};}d-=2*L;
+  const a=Math.PI/2+d/R;return {x:-L+Math.cos(a)*R,y:Math.sin(a)*R,nx:Math.cos(a),ny:Math.sin(a)};
+ }
+ function offset(u,t){
+  let o=Math.sin(u*6.283*3+t*.21)*.35+Math.sin(u*6.283*7-t*.33)*.22+Math.sin(u*6.283*13+t*.5)*.1;
+  for(const l of lobes){let du=Math.abs(u-((l.u+l.speed*t)%1+1)%1);du=Math.min(du,1-du);
+   o+=Math.exp(-du*du/(l.width*l.width))*(.5+.5*Math.sin(t*.17+l.phase));}
+  return Math.max(-1.2,Math.min(1.2,o));
+ }
+ function bleedPath(ctx,cx,cy,R,L,t,grow,amp){
+  ctx.beginPath();
+  for(let i=0;i<=180;i++){const u=i/180,p=rim(u,t,R,L),o=grow+offset(u,t)*amp;
+   const x=cx+p.x+p.nx*o,y=cy+p.y+p.ny*o;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);}
+  ctx.closePath();
+ }
+ function drawBleed(now){
+  requestAnimationFrame(drawBleed);
+  if(now-lastBleed<50)return;lastBleed=now;            // about 20 updates a second is plenty
+  const k=.25,W=Math.ceil(innerWidth*k),H=Math.ceil(innerHeight*k);
+  if(bleedCanvas.width!==W||bleedCanvas.height!==H){bleedCanvas.width=W;bleedCanvas.height=H;}
+  const ctx=bleedCtx,t=now/1000,w=outputW()*k,h=outputH()*k,R=h/2,L=Math.max(0,w/2-R);
+  const cx=(left()+outputW()/2)*k,cy=(top()+outputH()/2)*k,amp=h*.018;
+  ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='source-over';ctx.filter='none';
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  // The water, seen through a soft, irregular opening a little inside the capsule.
+  ctx.globalCompositeOperation='destination-out';ctx.filter='blur('+Math.max(2,h*.028).toFixed(1)+'px)';
+  bleedPath(ctx,cx,cy,R,L,t,-h*.035,amp);ctx.fillStyle='#fff';ctx.fill();
+  // A faint wet halo seeping out past the rim.
+  ctx.globalCompositeOperation='lighter';ctx.filter='blur('+Math.max(3,h*.06).toFixed(1)+'px)';
+  bleedPath(ctx,cx,cy,R,L,t*.8,-h*.005,amp*1.4);ctx.lineWidth=h*.05;ctx.strokeStyle='rgba(20,110,190,.22)';ctx.stroke();
+  bleedPath(ctx,cx,cy,R,L,t*.6+40,h*.03,amp*2.2);ctx.lineWidth=h*.035;ctx.strokeStyle='rgba(30,140,210,.08)';ctx.stroke();
+  ctx.filter='none';ctx.globalCompositeOperation='source-over';
+  if(calibrating){ctx.beginPath();for(let i=0;i<=120;i++){const p=rim(i/120,0,R,L);const x=cx+p.x,y=cy+p.y;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);}
+   ctx.closePath();ctx.lineWidth=1;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.stroke();}
+ }
+ // On-site fitting to the acrylic: C toggles; arrows move (Shift = faster), + / - resize, 0 resets.
+ // The values are kept in this browser, so the exhibition computer remembers them.
+ let calLabel=null;
+ function showCal(){
+  if(!calLabel){calLabel=document.createElement('div');calLabel.id='capsule-calibration';document.body.appendChild(calLabel);}
+  calLabel.hidden=!calibrating;
+  calLabel.textContent='맞춤 모드 · 방향키 이동 · +/- 크기 · 0 초기화 · C 닫기   크기 '+Math.round(scale*1000)/10+'%  가로 '+Math.round(shiftX*1000)/10+'%  세로 '+Math.round(shiftY*1000)/10+'%';
+ }
+ function saveCal(){try{root.localStorage&&root.localStorage.setItem(CAL_KEY,JSON.stringify({scale,x:shiftX,y:shiftY}));}catch(_){}}
+ if(capsule&&typeof addEventListener==='function')addEventListener('keydown',e=>{
+  if(e.key==='c'||e.key==='C'){calibrating=!calibrating;showCal();return;}
+  if(!calibrating)return;
+  const step=e.shiftKey?.01:.0025;let used=true;
+  if(e.key==='ArrowLeft')shiftX-=step;else if(e.key==='ArrowRight')shiftX+=step;
+  else if(e.key==='ArrowUp')shiftY-=step;else if(e.key==='ArrowDown')shiftY+=step;
+  else if(e.key==='+'||e.key==='=')scale=Math.min(1.15,scale+step);else if(e.key==='-'||e.key==='_')scale=Math.max(.4,scale-step);
+  else if(e.key==='0'){scale=.95;shiftX=0;shiftY=0;}else used=false;
+  if(!used)return;e.preventDefault();
+  shiftX=Math.max(-.3,Math.min(.3,shiftX));shiftY=Math.max(-.3,Math.min(.3,shiftY));
+  saveCal();apply();showCal();if(typeof root.dispatchEvent==='function')root.dispatchEvent(new Event('resize'));
+ });
+ function startBleed(){
+  if(bleedCanvas||typeof document.createElement!=='function'||!root.requestAnimationFrame)return;
+  bleedCanvas=document.createElement('canvas');bleedCanvas.id='projection-bleed';bleedCanvas.setAttribute('aria-hidden','true');
+  bleedCtx=bleedCanvas.getContext('2d');if(!bleedCtx){bleedCanvas=null;return;}
+  document.body.appendChild(bleedCanvas);requestAnimationFrame(drawBleed);
+ }
+ return {get rotation(){return rotation;},capsule,bleed,scale,width,height,density,apply,toStage,portrait:()=>height()>width()*1.05};
 })();
 root.AquariumView=view;
 if(typeof document!=='undefined'&&document.readyState!=='loading')view.apply();
