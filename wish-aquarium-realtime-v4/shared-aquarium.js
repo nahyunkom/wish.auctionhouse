@@ -348,7 +348,6 @@ function seededNoise(seed, offset) {
 function addCreature(data, isNew = true) {
   if (!data || swimmers.some((swimmer) => swimmer.id === data.id)) return;
   swimmers.push(new WishSwimmer(data, isNew));
-  if (swimmers.length > 120) swimmers.splice(0, swimmers.length - 120);
   updateCount();
   if (isNew) {
     // The birth sequence (light gathering into the creature) starts once its PNG is ready.

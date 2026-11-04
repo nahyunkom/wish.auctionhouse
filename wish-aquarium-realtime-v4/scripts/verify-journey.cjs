@@ -63,13 +63,13 @@ context.delayedAck(null,{ok:true});assert.equal(run('realtime.released'),false,'
 const source=fs.readFileSync(path.join(root,'server.js'),'utf8');
 const start=source.indexOf("app.get('/api/aquarium-summary'"),end=source.indexOf("app.get(['/', '/index.html']",start);
 let handler,summary,header;
-const serverContext={app:{get(_path,fn){handler=fn}},cleanExpiredCreatures(){},
- creatures:[{situationIndex:0,wayIndex:2},{situationIndex:0,wayIndex:1},{situationIndex:3,wayIndex:2}],
- creatureTtlMs:21600000,situationLabels:['a','b','c','d','e','f','g'],wayLabels:['a','b','c','d','e','f','g']};
+const serverContext={app:{get(_path,fn){handler=fn}},
+ store:{all:()=>[{situationIndex:0,wayIndex:2},{situationIndex:0,wayIndex:1},{situationIndex:3,wayIndex:2}]},
+ situationLabels:['a','b','c','d','e','f','g'],wayLabels:['a','b','c','d','e','f','g']};
 vm.runInNewContext(source.slice(start,end),serverContext);
 handler({}, {setHeader(k,v){header=[k,v]},json(value){summary=value}});
 assert.equal(summary.total,3);assert.equal(summary.directions[0].count,2);assert.equal(summary.directions[6].count,0);assert.equal(summary.methods[2].count,2);
-assert.equal(summary.directions.reduce((n,d)=>n+d.count,0),summary.total);assert.equal(summary.retentionHours,6);
+assert.equal(summary.directions.reduce((n,d)=>n+d.count,0),summary.total);assert.equal(summary.retentionHours,null);assert.equal(summary.retention,'until-manually-archived');
 assert.deepEqual(header,['Cache-Control','no-store']);assert.ok(!JSON.stringify(summary).includes('moment'));
 (async()=>{
  await run('window.WishJourney.showOceanReport();');

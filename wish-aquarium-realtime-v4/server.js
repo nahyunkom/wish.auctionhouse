@@ -5,14 +5,18 @@ const express = require('express');
 const { Server } = require('socket.io');
 const catalog = require('./creature-catalog.json');
 const catalogModel = require('./catalog-model.js')(catalog);
+const { createReleaseStore } = require('./release-store');
 
 const app = express();
 const httpServer = http.createServer(app);
 const root = __dirname;
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';
-const maxCreatures = clampNumber(process.env.MAX_CREATURES, 1, 500, 120);
-const creatureTtlMs = clampNumber(process.env.CREATURE_TTL_MS, 60_000, 86_400_000, 21_600_000);
+// On Render this must point inside an attached persistent disk. Refuse to
+// silently fall back to ephemeral storage and lose exhibition releases.
+if (process.env.RENDER && !process.env.AQUARIUM_DATA_DIR) throw Error('Set AQUARIUM_DATA_DIR to the persistent disk mount path before deploying.');
+const dataDir = process.env.AQUARIUM_DATA_DIR || path.join(__dirname, '.aquarium-data');
+const store = createReleaseStore(path.join(dataDir, 'releases.json'));
 const configuredOrigins = String(process.env.CLIENT_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -23,23 +27,6 @@ const situationLabels = ['경제적 소망', '관계적 소망', '자기실현 �
 const species = ['등불해파리', '리본해룡', '나선고둥', '재생산호', '쌍둥이말미잘', '심연문어', '날개갯민숭'];
 const wayLabels = ['신뢰형', '탐험형', '축적형', '회복형', '공존형', '몰입형', '초월형'];
 const hues = [45, 290, 210, 0, 70, 165, 250];
-
-let creatures = [];
-const releaseIds = new Map();
-
-function clampNumber(value, minimum, maximum, fallback) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(maximum, Math.max(minimum, Math.round(parsed)));
-}
-
-function cleanExpiredCreatures() {
-  const cutoff = Date.now() - creatureTtlMs;
-  creatures = creatures.filter((creature) => creature.releasedAt >= cutoff);
-  for (const [clientReleaseId, creature] of releaseIds) {
-    if (creature.releasedAt < cutoff) releaseIds.delete(clientReleaseId);
-  }
-}
 
 function makeCreature(payload) {
   const entry=catalogModel.get(payload?.catalogId);
@@ -63,18 +50,18 @@ app.use((request, response, next) => {
 });
 
 app.get('/health', (_request, response) => {
-  cleanExpiredCreatures();
-  response.json({ ok: true, catalogVersion:catalog.version, catalogCount:catalog.count, creatures: creatures.length, uptimeSeconds: Math.round(process.uptime()) });
+  response.json({ ok: true, catalogVersion:catalog.version, catalogCount:catalog.count, creatures: store.all().length, retention: 'until-manually-archived', storage: 'file', uptimeSeconds: Math.round(process.uptime()) });
 });
 
 // Only actual, retained releases are counted; never fabricate survey statistics.
 app.get('/api/aquarium-summary', (_request, response) => {
-  cleanExpiredCreatures();
+  const creatures = store.all();
   response.setHeader('Cache-Control', 'no-store');
   response.json({
     total: creatures.length,
-    retentionHours: creatureTtlMs / 3_600_000,
-    scope: 'currently-retained-releases',
+    retentionHours: null,
+    retention: 'until-manually-archived',
+    scope: 'saved-exhibition-releases',
     generatedAt: new Date().toISOString(),
     directions: situationLabels.map((label, index) => ({
       label, count: creatures.filter(creature => creature.situationIndex === index).length
@@ -137,8 +124,7 @@ function broadcastPresence() {
 }
 
 io.on('connection', (socket) => {
-  cleanExpiredCreatures();
-  socket.emit('aquarium:state', { creatures });
+  socket.emit('aquarium:state', { creatures: store.all() });
   broadcastPresence();
   let lastReleaseAt = 0;
 
@@ -153,8 +139,8 @@ io.on('connection', (socket) => {
     const clientReleaseId = typeof payload?.clientReleaseId === 'string'
       ? payload.clientReleaseId.slice(0, 100)
       : '';
-    if (clientReleaseId && releaseIds.has(clientReleaseId)) {
-      acknowledge({ ok: true, creature: releaseIds.get(clientReleaseId), duplicate: true });
+    if (clientReleaseId && store.find(clientReleaseId)) {
+      acknowledge({ ok: true, creature: store.find(clientReleaseId), duplicate: true });
       return;
     }
 
@@ -164,19 +150,18 @@ io.on('connection', (socket) => {
       return;
     }
 
-    cleanExpiredCreatures();
-    creatures.push(creature);
-    if (creatures.length > maxCreatures) creatures.splice(0, creatures.length - maxCreatures);
-    if (clientReleaseId) releaseIds.set(clientReleaseId, creature);
+    try { store.add(creature, clientReleaseId); }
+    catch (error) {
+      console.error('Could not persist aquarium release:', error.message);
+      acknowledge({ ok: false, message: '방류 기록을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.' });
+      return;
+    }
     io.emit('creature:released', creature);
     acknowledge({ ok: true, creature });
   });
 
   socket.on('disconnect', broadcastPresence);
 });
-
-const cleanupTimer = setInterval(cleanExpiredCreatures, Math.min(creatureTtlMs, 300_000));
-cleanupTimer.unref();
 
 httpServer.listen(port, host, () => {
   console.log(`Wish Aquarium listening on http://${host}:${port}`);
