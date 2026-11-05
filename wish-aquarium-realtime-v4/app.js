@@ -371,36 +371,6 @@ function connectRealtime(baseUrl) {
   });
 }
 
-// While a creature is released, the iPad steps back and points visitors to the aquarium:
-// the birth there takes about fifteen seconds (shared-aquarium.js BIRTH_TOTAL).
-let releaseOverlayTimer = 0;
-function releaseOverlay(state, entry) {
-  let layer = document.querySelector('#release-overlay');
-  if (state === 'close') { clearTimeout(releaseOverlayTimer); if (layer) { layer.classList.add('leaving'); setTimeout(() => layer.remove(), 600); } return; }
-  if (!layer) {
-    layer = document.createElement('div');layer.id = 'release-overlay';layer.setAttribute('role', 'status');layer.setAttribute('aria-live', 'polite');
-    document.body.appendChild(layer);
-  }
-  const name = entry && typeof creatureName === 'function' ? creatureName(entry) : '당신의 소망생물';
-  const image = entry ? '<img src="' + entry.imageUrl + '" alt="">' : '';
-  if (state === 'pending') {
-    layer.dataset.state = 'pending';
-    layer.innerHTML = '<div class="release-card">' + image + '<p class="release-kicker">RELEASING</p><h2>공유수족관에<br>방류하는 중<span class="release-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></h2></div>';
-  } else if (state === 'birth') {
-    layer.dataset.state = 'birth';
-    layer.innerHTML = '<div class="release-card">' + image + '<p class="release-kicker">NOW IN THE AQUARIUM</p><h2>앞의 수족관을<br>바라봐 주세요</h2><p class="release-lead"><strong>' + escapeHtml(name) + '</strong><br>지금 빛의 입자로 태어나고 있어요.</p><div class="release-progress" aria-hidden="true"><i></i></div><button class="release-close" id="release-close">결과로 돌아가기</button></div>';
-    layer.querySelector('#release-close').onclick = () => releaseOverlay('close');
-    clearTimeout(releaseOverlayTimer);
-    releaseOverlayTimer = setTimeout(() => {
-      const lead = layer.querySelector('.release-lead'), title = layer.querySelector('h2');
-      if (title) title.innerHTML = '이제 수족관에서<br>헤엄치기 시작했어요';
-      if (lead) lead.textContent = '다른 소망들과 함께 전시 기간 동안 머물러요.';
-      layer.dataset.state = 'swimming';
-      releaseOverlayTimer = setTimeout(() => releaseOverlay('close'), 6000);
-    }, 15000);
-  }
-}
-
 function releaseCreature() {
   if (!currentResult || realtime.released || realtime.releasing) return;
   if (!realtime.socket || !realtime.connected) {
@@ -411,7 +381,6 @@ function releaseCreature() {
   const releasingResult = currentResult;
   realtime.releasing = true;
   announceResultAction('당신의 생물이 전시장 수족관으로 이동하고 있어요.', 'pending');
-  releaseOverlay('pending', currentResult.entry);
   syncRealtimeControls();
   const payload = {
     catalogId: currentResult.entry.id,
@@ -422,14 +391,12 @@ function releaseCreature() {
     if (currentResult !== releasingResult) return;
     realtime.releasing = false;
     if (error || !response?.ok) {
-      releaseOverlay('close');
       announceResultAction(response?.message || '방류하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.', 'error');
       syncRealtimeControls();
       return;
     }
     realtime.released = true;
     announceResultAction('방류되었습니다. 지금 전시장 화면에서 헤엄치기 시작해요.', 'success');
-    releaseOverlay('birth', releasingResult.entry);
     const resultTank = document.querySelector('[data-result-tank]');
     if (resultTank) resultTank.insertAdjacentHTML('beforeend', '<div class="release-bloom" aria-hidden="true"></div>');
     syncRealtimeControls();
