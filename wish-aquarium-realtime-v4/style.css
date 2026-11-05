@@ -30,3 +30,13 @@ dialog{max-width:650px;width:calc(100% - 40px);padding:40px;border:1px solid var
 .lobby-item.lobby-main .lobby-number{color:#b8d4cf}.lobby-item.lobby-main .lobby-arrow{font-size:34px;color:#e3eee6}
 .lobby-item.lobby-main:hover{background:linear-gradient(120deg,rgba(130,210,195,.48),rgba(70,145,150,.26));border-color:rgba(207,230,220,.7)}
 @media(max-width:760px){.lobby-item.lobby-main{padding:24px 22px;min-height:112px}.lobby-item.lobby-main strong{font-size:23px}}
+
+/* iPad: presses and long presses never select text, show the callout or flash grey. */
+button,.seed-stage,.seed-hold,.seed-hold *,.current-pearl,.lobby-item,.answer{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.seed-page h1,.seed-page .page-lead{-webkit-user-select:none;user-select:none}
+.seed-hold{width:260px;height:260px;cursor:pointer}
+.seed-hold::before{content:'';position:absolute;inset:6px;border-radius:50%;background:conic-gradient(#d8f0e2 calc(var(--gather)*360deg),transparent 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));opacity:.9}
+.seed-hold.holding .seed-core{box-shadow:0 0 40px #c9f7e6cc,0 0 110px #76d6d799}
+.seed-hold.holding{transform:scale(.97);transition:transform .2s}
+.seed-hold .seed-caption{bottom:-30px;font-size:13px;white-space:nowrap}
+.seed-stage #seed-status{margin-top:40px}

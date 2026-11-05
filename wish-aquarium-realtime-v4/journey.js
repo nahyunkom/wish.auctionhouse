@@ -77,15 +77,28 @@
       backButton('seed-back')+nextButton('seed-next','터치 없이 계속하기'),'seed-page');
     $('#seed-back').onclick=()=>{step=2;renderQuestion();};
     const next=$('#seed-next'),orb=$('#seed-hold'),caption=orb.querySelector('.seed-caption');
-    let held=false,started=0,frame=0,progress=0;
+    let held=false,started=0,frame=0,progress=0,last=0;
+    // iPad: a long press must never select text or open the callout/magnifier.
+    const block=e=>{e.preventDefault();};
+    orb.addEventListener('touchstart',block,{passive:false});orb.addEventListener('touchmove',block,{passive:false});
+    orb.oncontextmenu=block;orb.onselectstart=block;
     const finish=()=>{held=false;story.seeded=true;orb.style.setProperty('--gather','1');orb.classList.add('gathered');caption.textContent='빛이 모였어요';$('#seed-status').textContent='당신의 소망이 조금 더 선명해졌어요.';next.textContent='이 소망을 키우러 가기 ↗';};
-    const tick=now=>{if(!held)return;progress=Math.min(1,(now-started)/1500);orb.style.setProperty('--gather',String(progress));if(progress===1)finish();else frame=requestAnimationFrame(tick);};
-    orb.onpointerdown=e=>{if(story.seeded)return;e.preventDefault();orb.setPointerCapture(e.pointerId);held=true;started=performance.now();frame=requestAnimationFrame(tick);};
-    const stop=()=>{held=false;cancelAnimationFrame(frame);if(!story.seeded){progress=0;orb.style.setProperty('--gather','0');}};
+    // Holding gathers the light over 1.5 s; letting go lets it drift back slowly, so a
+    // second press continues from where it is instead of starting over.
+    const tick=now=>{
+      const dt=last?Math.min(.1,(now-last)/1000):0;last=now;
+      if(story.seeded)return;
+      progress=held?Math.min(1,progress+dt/1.5):Math.max(0,progress-dt/2.5);
+      orb.style.setProperty('--gather',String(progress));orb.classList.toggle('holding',held);
+      if(progress>=1){finish();return;}
+      if(held||progress>0)frame=requestAnimationFrame(tick);else last=0;
+    };
+    orb.onpointerdown=e=>{if(story.seeded)return;e.preventDefault();try{orb.setPointerCapture(e.pointerId);}catch(_){}held=true;cancelAnimationFrame(frame);last=0;frame=requestAnimationFrame(tick);};
+    const stop=()=>{if(!held)return;held=false;orb.classList.remove('holding');cancelAnimationFrame(frame);last=0;frame=requestAnimationFrame(tick);};
     orb.onpointerup=stop;orb.onpointercancel=stop;orb.onlostpointercapture=stop;
     orb.onkeydown=e=>{if(e.code==='Space'||e.code==='Enter'){e.preventDefault();finish();}};
     next.onclick=()=>{if(!story.seeded)finish();step=3;renderQuestion();};
-    teardown=stop;
+    teardown=()=>{held=false;cancelAnimationFrame(frame);if(orb.removeEventListener){orb.removeEventListener('touchstart',block);orb.removeEventListener('touchmove',block);}};
     if(motionPaused||story.seeded)finish();
   }
   function bindCurrentQuestion(){
