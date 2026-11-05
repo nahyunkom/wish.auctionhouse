@@ -379,10 +379,13 @@ function releaseOverlay(state, entry) {
   if (state === 'close') { clearTimeout(releaseOverlayTimer); if (layer) { layer.classList.add('leaving'); setTimeout(() => layer.remove(), 600); } return; }
   if (!layer) {
     layer = document.createElement('div');layer.id = 'release-overlay';layer.setAttribute('role', 'status');layer.setAttribute('aria-live', 'polite');
-    document.body.appendChild(layer);
+    // Sits over the right-hand panel only; the creature on the left keeps its own release bloom.
+    const panel = document.querySelector('.result-actions-panel');
+    (panel || document.body).appendChild(layer);
+    if (!panel) layer.classList.add('floating');
   }
   const name = entry && typeof creatureName === 'function' ? creatureName(entry) : '당신의 소망생물';
-  const image = entry ? '<img src="' + entry.imageUrl + '" alt="">' : '';
+  const image = '';
   if (state === 'pending') {
     layer.dataset.state = 'pending';
     layer.innerHTML = '<div class="release-card">' + image + '<p class="release-kicker">RELEASING</p><h2>공유수족관에<br>방류하는 중<span class="release-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></h2></div>';
