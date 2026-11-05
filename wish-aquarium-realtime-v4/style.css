@@ -40,3 +40,6 @@ button,.seed-stage,.seed-hold,.seed-hold *,.current-pearl,.lobby-item,.answer{-w
 .seed-hold.holding{transform:scale(.97);transition:transform .2s}
 .seed-hold .seed-caption{bottom:-30px;font-size:13px;white-space:nowrap}
 .seed-stage #seed-status{margin-top:40px}
+
+.take-home[hidden]{display:none}
+.take-home{animation:releaseIn .4s ease both}@keyframes releaseIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}

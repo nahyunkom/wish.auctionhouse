@@ -149,9 +149,15 @@
     try{
       if(typeof qrcode==='function'){
         const link=location.origin+'/c/'+entry.id,qr=qrcode(0,'M');qr.addData(link);qr.make();
-        const home=document.createElement('div');home.className='take-home';
-        home.innerHTML='<div class="take-home-qr" aria-hidden="true">'+qr.createSvgTag({cellSize:4,margin:2,scalable:true})+'</div><div><strong>내 휴대폰으로 가져가기</strong><p>휴대폰 카메라로 QR을 비추면<br>이 생물 이미지를 내 휴대폰에 저장할 수 있어요.</p></div>';
+        const home=document.createElement('div');home.className='take-home';home.hidden=true;
+        home.innerHTML='<div class="take-home-qr" aria-hidden="true">'+qr.createSvgTag({cellSize:4,margin:2,scalable:true})+'</div><div><strong>내 휴대폰에 영상 저장하기</strong><p>휴대폰 카메라로 QR을 비추면<br>이 생물의 움직이는 영상을 저장할 수 있어요.</p></div>';
         const buttons=panel.querySelector('.result-action-buttons');(buttons||panel).after(home);
+        // The save button now opens the QR: the creature's video is saved on the visitor's own phone.
+        const save=$('#save-creature');
+        if(save){
+          save.innerHTML='<span><small>KEEP YOUR WISH</small>내 생물 영상 저장하기</span><span aria-hidden="true">↓</span>';
+          save.onclick=()=>{home.hidden=!home.hidden;save.setAttribute('aria-expanded',String(!home.hidden));if(!home.hidden)home.scrollIntoView({behavior:'smooth',block:'nearest'});};
+        }
       }
     }catch(_){/* QR is optional */}
     const explanation=document.createElement('p');explanation.className='release-note';explanation.textContent='함께 모인 소망은 서로를 응원하는 힘이 됩니다. 방류는 작품 속 참여 방식이며, 소망의 실제 실현을 보장하지 않아요.';panel.appendChild(explanation);

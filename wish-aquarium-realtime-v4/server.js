@@ -185,6 +185,32 @@ const takeHome = (() => {
   } catch (error) { console.warn('Take-home page unavailable', error.message); return null; }
 })();
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// The creature's own video, relayed from the catalog's video host so a phone can play it
+// (Range requests pass through) and save it (?download=1 sends it as a file).
+app.get('/c/:id/video', async (request, response) => {
+  const id = String(request.params.id || '');
+  const entry = /^WC-[a-f0-9]{12}$/.test(id) ? catalogModel.get(id) : null;
+  if (!entry || !/^https:\/\/d8j0ntlcm91z4\.cloudfront\.net\//.test(entry.videoUrl)) { response.status(404).end(); return; }
+  try {
+    const headers = {};
+    if (request.headers.range) headers.Range = request.headers.range;
+    const upstream = await fetch(entry.videoUrl, { headers });
+    if (!upstream.ok && upstream.status !== 206) { response.status(502).end(); return; }
+    response.status(upstream.status);
+    for (const name of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+      const value = upstream.headers.get(name);if (value) response.setHeader(name, value);
+    }
+    if (!upstream.headers.get('accept-ranges')) response.setHeader('Accept-Ranges', 'bytes');
+    response.setHeader('Cache-Control', 'public, max-age=86400');
+    if (request.query.download) {
+      const named = takeHome && takeHome.names[entry.id] ? takeHome.names[entry.id].ko : entry.id;
+      response.setHeader('Content-Disposition', "attachment; filename=\"wish-creature.mp4\"; filename*=UTF-8''" + encodeURIComponent('소망경매장_' + named + '.mp4'));
+    }
+    const { Readable } = require('node:stream');
+    Readable.fromWeb(upstream.body).on('error', () => response.destroy()).pipe(response);
+  } catch (error) { if (!response.headersSent) response.status(502).end(); else response.destroy(); }
+});
+
 app.get('/c/:id', (request, response) => {
   const id = String(request.params.id || '');
   const entry = /^WC-[a-f0-9]{12}$/.test(id) ? catalogModel.get(id) : null;
@@ -197,11 +223,12 @@ app.get('/c/:id', (request, response) => {
   } else {
     const named = takeHome.names[entry.id] || { ko: '소망생물', la: '' };
     const file = encodeURIComponent('소망경매장_' + named.ko + '.png');
-    body = '<figure><img src="/' + escapeHtml(entry.imageUrl) + '" alt="' + escapeHtml(named.ko) + '"></figure>'
+    const video = '/c/' + entry.id + '/video';
+    body = '<figure><video src="' + video + '" poster="/' + escapeHtml(entry.imageUrl) + '" autoplay muted loop playsinline preload="auto" aria-label="' + escapeHtml(named.ko) + '"></video></figure>'
       + '<h1>' + escapeHtml(named.ko) + '</h1><p class="latin">' + escapeHtml(named.la) + '</p>'
       + '<p class="wish">' + escapeHtml(takeHome.wishDescriptions[entry.wishType] || '') + '<br>' + escapeHtml(takeHome.methodDescriptions[entry.methodType] || '') + '</p>'
-      + '<a class="save" href="/' + escapeHtml(entry.imageUrl) + '" download="' + escapeHtml(decodeURIComponent(file)) + '">이미지 저장하기 <span aria-hidden="true">↓</span></a>'
-      + '<p class="tip">저장 버튼이 안 되면 위의 생물 이미지를 길게 눌러 \'사진 앱에 저장\'을 눌러 주세요.</p>'
+      + '<a class="save" href="' + video + '?download=1" download="' + escapeHtml(decodeURIComponent(file).replace(/\.png$/, '.mp4')) + '">영상 저장하기 <span aria-hidden="true">↓</span></a>'
+      + '<p class="tip">아이폰은 저장한 영상이 \'파일\' 앱에 들어가요. 사진 앱에 넣으려면 파일 앱에서 영상을 열고 공유 → \'비디오 저장\'을 눌러 주세요.<br><a href="/' + escapeHtml(entry.imageUrl) + '" download="' + escapeHtml(decodeURIComponent(file)) + '">이미지로 저장하기</a></p>'
       + '<p class="id">' + escapeHtml(entry.id) + ' · 소망경매장 WISH AUCTION HOUSE</p>';
   }
   response.type('html').send(takeHome.template.replace('<!--CREATURE-->', body));
