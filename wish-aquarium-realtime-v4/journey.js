@@ -34,7 +34,7 @@
   function showLobby(){
     shell('00 / THE ENTRANCE','보이지 않던 마음에,<br>머물 곳을 내어주세요.',
       '<p class="page-lead">무엇을 바라는지, 어떻게 키워 가는지.<br>당신의 선택을 따라 한 마리의 소망생물을 만납니다.</p><nav class="lobby-grid" aria-label="소망경매장 안내">'+
-      [['new-wish','01','나의 소망 발견하기','잠시 마음을 살피고, 나의 생물 만나기'],['all-creatures','02','생물 도감','다양한 소망이 가진 모습 살펴보기'],['ocean-report','03','함께 사는 소망','공유수족관에 모인 실제 방류 기록']].map(x=>'<button class="lobby-item'+(x[0]==='new-wish'?' lobby-main':'')+'" id="'+x[0]+'"><span class="lobby-number">'+x[1]+'</span><span><strong>'+x[2]+'</strong><small>'+x[3]+'</small></span><span class="lobby-arrow" aria-hidden="true">↗</span></button>').join('')+'</nav>',
+      [['new-wish','01','나의 소망 진단하기','잠시 마음을 살피고, 나의 생물 만나기'],['all-creatures','02','생물 도감','다양한 소망이 가진 모습 살펴보기'],['ocean-report','03','함께 사는 소망','공유수족관에 모인 실제 방류 기록']].map(x=>'<button class="lobby-item'+(x[0]==='new-wish'?' lobby-main':'')+'" id="'+x[0]+'"><span class="lobby-number">'+x[1]+'</span><span><strong>'+x[2]+'</strong><small>'+x[3]+'</small></span><span class="lobby-arrow" aria-hidden="true">↗</span></button>').join('')+'</nav>',
       '<span class="quiet-note">약 4–6분 · 정답 없는 창작 진단</span>'+backButton('lobby-about','프로젝트 소개'),'lobby');
     $('#new-wish').onclick=begin;$('#all-creatures').onclick=()=>showFieldGuide();$('#ocean-report').onclick=()=>showOceanReport();$('#lobby-about').onclick=()=>$('#about-dialog').showModal();
   }
@@ -158,7 +158,7 @@
   function openSpecimen(entry,back){
     shell('THE FIELD GUIDE / '+entry.id,escapeHtml(creatureName(entry)),
       '<div class="encounter"><figure><img src="'+entry.imageUrl+'" alt="'+escapeHtml(creatureName(entry))+'"><figcaption lang="la"><i>'+escapeHtml(creatureLatin(entry))+'</i></figcaption></figure><div><h2>'+escapeHtml(entry.wishCategory)+'</h2><p>'+escapeHtml(wishDescriptions[entry.wishType]||'')+'</p><h3>'+escapeHtml(methodDescriptions[entry.methodType]||'')+'</h3><p>'+escapeHtml(methodWhispers[entry.methodType]||'')+'</p><p class="quiet-note">도감은 생물을 살펴보는 곳이에요.<br>나의 생물은 소망 탐사를 통해 만나주세요.</p></div></div>',
-      backButton('specimen-back','목록으로')+nextButton('specimen-begin','나의 소망 발견하기'),'specimen-detail');
+      backButton('specimen-back','목록으로')+nextButton('specimen-begin','나의 소망 진단하기'),'specimen-detail');
     $('#specimen-back').onclick=back;$('#specimen-begin').onclick=begin;
   }
   function bindCards(back){
@@ -178,7 +178,7 @@
     const filtered=WishCatalog.entries.filter(x=>!blankCreatureIds.has(x.id)&&(filter<0||x.situationIndex===filter)),shown=filtered.slice(0,(page+1)*12);
     shell('THE FIELD GUIDE / '+WishCatalog.entries.length+' SPECIMENS','소망은 저마다,<br>다른 모습으로 살아갑니다.',
       '<p class="page-lead">실제로 제작된 소망생물의 기록을 살펴보세요.</p><div class="guide-filters" role="group" aria-label="소망 분류">'+[-1,0,1,2,3,4,5,6].map(i=>'<button class="'+(i===filter?'active':'')+'" data-filter="'+i+'" aria-pressed="'+(i===filter)+'">'+(i<0?'모든 소망':situations[i].label)+'</button>').join('')+'</div>'+(shown.length?'<div class="specimen-grid">'+shown.map(collectionCard).join('')+'</div>':'<div class="empty-water"><p>이 방향의 생물은 아직 준비 중이에요.<br>다른 소망의 생물을 살펴보세요.</p></div>')+(shown.length<filtered.length?'<button class="load-more" id="guide-more">생물 더 보기 ('+shown.length+' / '+filtered.length+') ＋</button>':''),
-      backButton('guide-back','입구로')+nextButton('guide-begin','나의 소망 발견하기'),'guide-page');
+      backButton('guide-back','입구로')+nextButton('guide-begin','나의 소망 진단하기'),'guide-page');
     app.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>showFieldGuide(Number(b.dataset.filter)));
     const more=$('#guide-more');if(more)more.onclick=()=>{const previousY=window.scrollY;showFieldGuide(collectionFilter,collectionPage+1);window.scrollTo(0,previousY);};
     $('#guide-back').onclick=showLobby;$('#guide-begin').onclick=begin;bindCards(()=>showFieldGuide(collectionFilter,collectionPage));
