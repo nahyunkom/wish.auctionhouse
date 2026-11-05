@@ -123,6 +123,35 @@ app.get('/api/aquarium-archive', (_request, response) => {
     creatures: creatures.map(({ id, catalogId, releasedAt, seed, wishType, methodType }) => ({ id, catalogId, releasedAt, seed, wishType, methodType })) });
 });
 
+// ---- Depth sensor input (D455 → Python → here → aquarium displays) ----
+// Points are in projector-screen coordinates, 0–1 (x right, y down). Any partial
+// detection is welcome: k = 'tip' | 'end' | 'blob' (best guess first), s = strength 0–1.
+// POST /api/depth {points:[{x,y,s,k}], key?}   or socket 'depth:input' with the same body.
+const sensorKey = process.env.SENSOR_KEY || '';
+let sensorWindowStart = 0, sensorWindowCount = 0, sensorLastAt = 0, sensorTotal = 0;
+function relaySensor(body) {
+  if (!body || typeof body !== 'object') return false;
+  if (sensorKey && body.key !== sensorKey) return false;
+  const now = Date.now();
+  if (now - sensorWindowStart > 1000) { sensorWindowStart = now; sensorWindowCount = 0; }
+  if (++sensorWindowCount > 90) return false;                       // at most ~90 updates a second
+  const points = (Array.isArray(body.points) ? body.points : [body]).slice(0, 8).map((p) => ({
+    x: Number(p && p.x), y: Number(p && p.y),
+    s: Math.min(1, Math.max(0, Number.isFinite(Number(p && p.s)) ? Number(p.s) : .6)),
+    k: ['tip', 'end', 'blob'].includes(p && p.k) ? p.k : 'blob'
+  })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= -.1 && p.x <= 1.1 && p.y >= -.1 && p.y <= 1.1);
+  sensorLastAt = now; sensorTotal++;
+  io.volatile.emit('aquarium:touch', { points, at: now });
+  return true;
+}
+app.post('/api/depth', express.json({ limit: '8kb' }), (request, response) => {
+  response.json({ ok: relaySensor(request.body) });
+});
+app.get('/api/depth/status', (_request, response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  response.json({ lastInputSecondsAgo: sensorLastAt ? Math.round((Date.now() - sensorLastAt) / 100) / 10 : null, total: sensorTotal, keyRequired: Boolean(sensorKey) });
+});
+
 app.get('/api/aquarium-summary', (_request, response) => {
   cleanExpiredCreatures();
   response.setHeader('Cache-Control', 'no-store');
@@ -157,6 +186,7 @@ for (const filename of [
   'creature-names.js',
   'particles.js',
   'qrcode.js',
+  'sensor-test.html',
   'shared-aquarium.css',
   'shared-aquarium.js',
   'aquarium-sound.js',
@@ -297,6 +327,8 @@ io.on('connection', (socket) => {
     const added = restoreCreatures(payload?.creatures);
     if (added.length) io.emit('aquarium:restored', { creatures: added });
   });
+
+  socket.on('depth:input', (body) => { relaySensor(body); });
 
   socket.on('disconnect', broadcastPresence);
 });

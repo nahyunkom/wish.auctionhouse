@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>센서 테스트 — 소망경매장</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #071016; color: #dfe9e4; font: 14px/1.6 -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+      main { max-width: 980px; margin: 0 auto; padding: 24px 18px; }
+      h1 { font-size: 20px; margin: 0 0 6px; }
+      p { color: #9db8b6; margin: 0 0 14px; }
+      #pad { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 1px solid #3b5b62; border-radius: 12px; background: radial-gradient(ellipse at 50% 40%, #0b3b5a, #04121c); touch-action: none; user-select: none; -webkit-user-select: none; overflow: hidden; }
+      #pad span { position: absolute; left: 12px; top: 10px; color: #6f9298; font-size: 12px; }
+      #dot { position: absolute; width: 18px; height: 18px; margin: -9px; border-radius: 50%; background: #ff8ccf; display: none; }
+      .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; }
+      button, select { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #3b5b62; background: #0d2129; color: #dfe9e4; font: inherit; }
+      button.on { background: #cfe6dc; color: #0d2129; }
+      #status { font: 12px ui-monospace, monospace; color: #9db8b6; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>센서 테스트 (D455 대신 마우스·손가락)</h1>
+      <p>아래 상자는 프로젝터 화면이에요. 상자 안을 움직이거나 누르면 D455 파이썬 프로그램과 똑같은 방식(POST /api/depth)으로 서버에 보내고, 전시장 수족관이 반응해요.</p>
+      <div class="row">
+        <label>감지 종류
+          <select id="kind"><option value="tip">손끝 (tip)</option><option value="end">팔 끝점 (end)</option><option value="blob">팔 윤곽 (blob)</option></select>
+        </label>
+        <label>비율
+          <select id="ratio"><option value="16 / 9">16:9 가로</option><option value="9 / 16">9:16 세로</option></select>
+        </label>
+        <button id="jitter">흔들리는 인식 흉내</button>
+        <label>키 <input id="key" size="10" placeholder="(설정한 경우만)" style="min-height:36px;border-radius:8px;border:1px solid #3b5b62;background:#0d2129;color:#dfe9e4;padding:0 8px"></label>
+      </div>
+      <div id="pad"><span>프로젝터 화면</span><i id="dot"></i></div>
+      <div class="row"><div id="status">대기 중</div></div>
+    </main>
+    <script>
+      const pad = document.getElementById('pad'), dot = document.getElementById('dot'), status = document.getElementById('status');
+      let last = 0, sent = 0, ok = 0, jitter = false;
+      document.getElementById('ratio').onchange = (e) => { pad.style.aspectRatio = e.target.value; };
+      document.getElementById('jitter').onclick = (e) => { jitter = !jitter; e.target.classList.toggle('on', jitter); };
+      async function send(x, y, s) {
+        sent++;
+        const points = [{ x, y, s, k: document.getElementById('kind').value }];
+        if (jitter) { points[0].x += (Math.random() - .5) * .04; points[0].y += (Math.random() - .5) * .04; if (Math.random() < .3) points[0].k = 'blob'; }
+        try {
+          const r = await fetch('/api/depth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ points, key: document.getElementById('key').value || undefined }) });
+          if ((await r.json()).ok) ok++;
+        } catch (_) {}
+      }
+      function move(e) {
+        const b = pad.getBoundingClientRect(), x = (e.clientX - b.left) / b.width, y = (e.clientY - b.top) / b.height;
+        if (x < 0 || x > 1 || y < 0 || y > 1) return;
+        dot.style.display = 'block'; dot.style.left = (x * 100) + '%'; dot.style.top = (y * 100) + '%';
+        const now = performance.now(); if (now - last < 45 && e.type === 'pointermove') return; last = now;
+        send(x, y, e.buttons ? 1 : .6);
+      }
+      pad.addEventListener('pointermove', move); pad.addEventListener('pointerdown', move);
+      setInterval(async () => {
+        try { const s = await (await fetch('/api/depth/status', { cache: 'no-store' })).json();
+          status.textContent = '보낸 신호 ' + sent + ' · 서버가 받은 신호 ' + ok + '\n서버 마지막 수신: ' + (s.lastInputSecondsAgo == null ? '없음' : s.lastInputSecondsAgo + '초 전') + ' · 누적 ' + s.total;
+        } catch (_) { status.textContent = '서버 상태를 읽지 못했어요.'; }
+      }, 1000);
+    </script>
+  </body>
+
+</html>

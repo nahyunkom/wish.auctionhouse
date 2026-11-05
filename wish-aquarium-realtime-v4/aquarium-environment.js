@@ -384,7 +384,7 @@ function ensureFront(w,h){
   for(let i=0;i<90;i++)plankton.push({hx:rand(),hy:.12+rand()*.86,x:0,y:0,pull:0,orbit:30+rand()*130,ang:rand()*6.28,spin:(.15+rand()*.35)*(rand()<.5?-1:1),phase:rand()*6.28,r:.8+rand()*1.4,placed:false});
   const stage=document.querySelector('#aquarium-stage');
   if(stage){
-   const onPointer=e=>{const at=view.toStage(e.clientX,e.clientY);feel(at.x,at.y,e.pointerType==='mouse'&&!e.buttons?.6:1,e.type==='pointerdown');};
+   const onPointer=e=>{if(root.AQUARIUM_SENSOR_TEST)return;const at=view.toStage(e.clientX,e.clientY);feel(at.x,at.y,e.pointerType==='mouse'&&!e.buttons?.6:1,e.type==='pointerdown');};
    stage.addEventListener('pointerdown',onPointer,{passive:true});
    stage.addEventListener('pointermove',onPointer,{passive:true});
   }

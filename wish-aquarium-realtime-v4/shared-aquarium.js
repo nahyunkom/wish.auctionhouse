@@ -398,6 +398,71 @@ function showArrival() { /* Keep the screen free of arrival labels. */ }
 
 function setLiveState() { /* Connection state remains internal. */ }
 
+// ---- Depth sensor (D455) input ----
+// Points arrive in projector-screen coordinates (0–1). Whatever was found — a fingertip,
+// the end of an arm, or just part of the body's outline — becomes presence in the water.
+// The position is smoothed so an unsteady detection still moves the water gently.
+// ?sensorTest=1  the mouse on this screen is sent through the server like the camera.
+// ?sensorDebug=1 shows the received points as small dots (for fitting on site).
+// ?sensorMirror=1 / ?sensorFlipY=1 flip the incoming coordinates.
+const sensorParams = (() => { try { return new URLSearchParams(location.search); } catch (_) { return { get: () => null }; } })();
+const sensorTest = sensorParams.get('sensorTest') === '1';
+const sensorDebug = sensorParams.get('sensorDebug') === '1' || sensorTest;
+const sensorMirror = sensorParams.get('sensorMirror') === '1', sensorFlipY = sensorParams.get('sensorFlipY') === '1';
+if (sensorTest) window.AQUARIUM_SENSOR_TEST = true;
+const sensor = { x: 0, y: 0, seen: 0, lastRing: 0, speed: 0, dots: [], rate: 0, count: 0, countAt: 0 };
+function receiveSensor(data) {
+  const points = Array.isArray(data?.points) ? data.points : [];
+  const now = performance.now();
+  sensor.count++;if (now - sensor.countAt > 1000) { sensor.rate = sensor.count; sensor.count = 0; sensor.countAt = now; }
+  if (!points.length || !window.AquariumEnvironment || !window.AquariumView) return;
+  // Best guess first: a fingertip, then an arm's end, then any outline; stronger wins.
+  const rank = { tip: 3, end: 2, blob: 1 };
+  const best = points.slice().sort((a, b) => (rank[b.k] || 0) - (rank[a.k] || 0) || (b.s || 0) - (a.s || 0))[0];
+  const nx = sensorMirror ? 1 - best.x : best.x, ny = sensorFlipY ? 1 - best.y : best.y;
+  const at = AquariumView.toStage(nx * innerWidth, ny * innerHeight);
+  const fresh = now - sensor.seen > 700;
+  const dt = Math.max(.016, Math.min(.3, (now - sensor.seen) / 1000));
+  const ease = fresh ? 1 : Math.min(1, dt * 7);               // smooth a jittery detection
+  const px = sensor.x, py = sensor.y;
+  sensor.x += (at.x - sensor.x) * ease; sensor.y += (at.y - sensor.y) * ease;
+  const speed = fresh ? 0 : Math.hypot(sensor.x - px, sensor.y - py) / dt;
+  sensor.speed += (speed - sensor.speed) * .4; sensor.seen = now;
+  // Even a small movement keeps a minimum response; a bigger one stirs harder.
+  const strength = Math.min(1, .45 + (best.s || .5) * .25 + sensor.speed / 900);
+  const ring = fresh || (sensor.speed > 650 && now - sensor.lastRing > 900);
+  if (ring) sensor.lastRing = now;
+  AquariumEnvironment.feel(sensor.x, sensor.y, strength, ring);
+  if (sensorDebug) sensor.dots = points.map((p) => ({ x: sensorMirror ? 1 - p.x : p.x, y: sensorFlipY ? 1 - p.y : p.y, k: p.k, at: now }));
+}
+function startSensorTest() {
+  let last = 0;
+  const send = (e) => {
+    const now = performance.now();if (now - last < 40 || !socket) return;last = now;
+    socket.emit('depth:input', { points: [{ x: e.clientX / innerWidth, y: e.clientY / innerHeight, s: e.buttons ? 1 : .6, k: 'tip' }] });
+  };
+  addEventListener('pointermove', send, { passive: true });
+  addEventListener('pointerdown', send, { passive: true });
+}
+if (sensorDebug) {
+  const layer = document.createElement('canvas');
+  Object.assign(layer.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 });
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(layer));
+  const draw = () => {
+    requestAnimationFrame(draw);
+    if (layer.width !== innerWidth || layer.height !== innerHeight) { layer.width = innerWidth; layer.height = innerHeight; }
+    const g = layer.getContext('2d'), now = performance.now();g.clearRect(0, 0, layer.width, layer.height);
+    for (const d of sensor.dots) {
+      const a = Math.max(0, 1 - (now - d.at) / 600);if (!a) continue;
+      g.fillStyle = d.k === 'tip' ? `rgba(255,120,200,${a})` : d.k === 'end' ? `rgba(255,220,120,${a})` : `rgba(140,220,255,${a})`;
+      g.beginPath();g.arc(d.x * innerWidth, d.y * innerHeight, 7, 0, 6.283);g.fill();
+    }
+    g.fillStyle = 'rgba(255,255,255,.75)';g.font = '13px sans-serif';
+    g.fillText((sensorTest ? '센서 테스트 모드 · ' : '센서 표시 · ') + '수신 ' + sensor.rate + '/초' + (now - sensor.seen < 700 ? ' · 감지 중' : ''), 16, innerHeight - 18);
+  };
+  requestAnimationFrame(draw);
+}
+
 function connectAquarium() {
   for (const creature of readArchive()) addCreature(creature, false);
   const baseUrl = String(displayConfig.socketUrl || '').replace(/\/$/, '');
@@ -418,6 +483,8 @@ function connectAquarium() {
     socket.on('aquarium:state', syncAquariumState);
     socket.on('creature:released', (creature) => addCreature(creature, true));
     socket.on('aquarium:restored', (data) => { for (const creature of data?.creatures || []) addCreature(creature, false); });
+    socket.on('aquarium:touch', receiveSensor);
+    if (sensorTest) startSensorTest();
   };
   script.onerror = () => setLiveState('offline', '수족관 서버를 찾지 못함');
   document.head.appendChild(script);
