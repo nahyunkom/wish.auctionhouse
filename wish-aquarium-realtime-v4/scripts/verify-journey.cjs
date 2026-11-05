@@ -24,7 +24,7 @@ vm.createContext(context);
 for(const file of ['data.js','creature-names.js','catalog-ui.js','app.js','journey.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
 const run=code=>vm.runInContext(code,context);
 assert.ok(element('#start').innerHTML.includes('소망경매장 입장하기'));
-element('#start').onclick();assert.ok(app.innerHTML.includes('내 생물 보관함'));
+element('#start').onclick();assert.ok(app.innerHTML.includes('나의 소망 발견하기')&&!app.innerHTML.includes('내 생물 보관함'));
 element('#new-wish').onclick();assert.ok(app.innerHTML.includes('data-choice="0"'));
 run('answers[0]=0;');element('#next').onclick();assert.ok(app.innerHTML.includes('wish-moment'));
 element('#wish-moment').oninput({target:{value:'<img src=x onerror=alert(1)>'}});

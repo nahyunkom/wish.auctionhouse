@@ -34,9 +34,9 @@
   function showLobby(){
     shell('00 / THE ENTRANCE','보이지 않던 마음에,<br>머물 곳을 내어주세요.',
       '<p class="page-lead">무엇을 바라는지, 어떻게 키워 가는지.<br>당신의 선택을 따라 한 마리의 소망생물을 만납니다.</p><nav class="lobby-grid" aria-label="소망경매장 안내">'+
-      [['new-wish','01','나의 소망 발견하기','잠시 마음을 살피고, 나의 생물 만나기'],['my-creatures','02','내 생물 보관함','이 기기에 간직한 소망 다시 만나기'],['all-creatures','03','생물 도감','다양한 소망이 가진 모습 살펴보기'],['ocean-report','04','함께 사는 소망','공유수족관에 모인 실제 방류 기록']].map(x=>'<button class="lobby-item" id="'+x[0]+'"><span class="lobby-number">'+x[1]+'</span><span><strong>'+x[2]+'</strong><small>'+x[3]+'</small></span><span class="lobby-arrow" aria-hidden="true">↗</span></button>').join('')+'</nav>',
+      [['new-wish','01','나의 소망 발견하기','잠시 마음을 살피고, 나의 생물 만나기'],['all-creatures','02','생물 도감','다양한 소망이 가진 모습 살펴보기'],['ocean-report','03','함께 사는 소망','공유수족관에 모인 실제 방류 기록']].map(x=>'<button class="lobby-item'+(x[0]==='new-wish'?' lobby-main':'')+'" id="'+x[0]+'"><span class="lobby-number">'+x[1]+'</span><span><strong>'+x[2]+'</strong><small>'+x[3]+'</small></span><span class="lobby-arrow" aria-hidden="true">↗</span></button>').join('')+'</nav>',
       '<span class="quiet-note">약 4–6분 · 정답 없는 창작 진단</span>'+backButton('lobby-about','프로젝트 소개'),'lobby');
-    $('#new-wish').onclick=begin;$('#my-creatures').onclick=showCollection;$('#all-creatures').onclick=()=>showFieldGuide();$('#ocean-report').onclick=()=>showOceanReport();$('#lobby-about').onclick=()=>$('#about-dialog').showModal();
+    $('#new-wish').onclick=begin;$('#all-creatures').onclick=()=>showFieldGuide();$('#ocean-report').onclick=()=>showOceanReport();$('#lobby-about').onclick=()=>$('#about-dialog').showModal();
   }
   begin = function(){
     resetScene();story=emptyStory();currentResult=null;document.body.dataset.journey='diagnosis';original.begin();
