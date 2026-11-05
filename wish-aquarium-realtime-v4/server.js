@@ -156,6 +156,7 @@ for (const filename of [
   'catalog-ui.js',
   'creature-names.js',
   'particles.js',
+  'qrcode.js',
   'shared-aquarium.css',
   'shared-aquarium.js',
   'aquarium-sound.js',
@@ -171,6 +172,41 @@ app.use('/assets', express.static(path.join(root, 'assets'), {
   maxAge: '7d',
   fallthrough: false
 }));
+// ---- Take-home page: a visitor scans the QR on the result screen and saves the
+// creature image on their own phone. Only real catalog creatures; no visitor data.
+const vm = require('node:vm');
+const takeHome = (() => {
+  try {
+    const context = { document: {}, window: {}, console };
+    vm.createContext(context);
+    vm.runInContext(fs.readFileSync(path.join(root, 'creature-names.js'), 'utf8'), context);
+    const text = vm.runInContext(fs.readFileSync(path.join(root, 'catalog-ui.js'), 'utf8') + ';({wishDescriptions,methodDescriptions,wishWhispers,blank:[...blankCreatureIds]})', context);
+    return { names: context.creatureNames || {}, ...text, template: fs.readFileSync(path.join(root, 'take-home.html'), 'utf8') };
+  } catch (error) { console.warn('Take-home page unavailable', error.message); return null; }
+})();
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+app.get('/c/:id', (request, response) => {
+  const id = String(request.params.id || '');
+  const entry = /^WC-[a-f0-9]{12}$/.test(id) ? catalogModel.get(id) : null;
+  response.setHeader('Cache-Control', 'public, max-age=300');
+  if (!takeHome) { response.status(503).send('잠시 후 다시 시도해 주세요.'); return; }
+  let body;
+  if (!entry || takeHome.blank.includes(id)) {
+    response.status(404);
+    body = '<p class="missing">이 소망생물을 찾지 못했어요.</p>';
+  } else {
+    const named = takeHome.names[entry.id] || { ko: '소망생물', la: '' };
+    const file = encodeURIComponent('소망경매장_' + named.ko + '.png');
+    body = '<figure><img src="/' + escapeHtml(entry.imageUrl) + '" alt="' + escapeHtml(named.ko) + '"></figure>'
+      + '<h1>' + escapeHtml(named.ko) + '</h1><p class="latin">' + escapeHtml(named.la) + '</p>'
+      + '<p class="wish">' + escapeHtml(takeHome.wishDescriptions[entry.wishType] || '') + '<br>' + escapeHtml(takeHome.methodDescriptions[entry.methodType] || '') + '</p>'
+      + '<a class="save" href="/' + escapeHtml(entry.imageUrl) + '" download="' + escapeHtml(decodeURIComponent(file)) + '">이미지 저장하기 <span aria-hidden="true">↓</span></a>'
+      + '<p class="tip">저장 버튼이 안 되면 위의 생물 이미지를 길게 눌러 \'사진 앱에 저장\'을 눌러 주세요.</p>'
+      + '<p class="id">' + escapeHtml(entry.id) + ' · 소망경매장 WISH AUCTION HOUSE</p>';
+  }
+  response.type('html').send(takeHome.template.replace('<!--CREATURE-->', body));
+});
+
 app.get('/vendor/p5.min.js', (_request, response) => {
   response.sendFile(path.join(root, 'node_modules', 'p5', 'lib', 'p5.min.js'));
 });

@@ -132,6 +132,15 @@
     $('#result-actions-title').textContent='혼자 품던 소망을, 함께 살아가는 소망으로.';
     panel.querySelector('.action-intro').textContent='먹어 내 안에 품기, 이름을 부르며 기리기, 이미지로 간직하기. 소망을 대하는 방식은 여러 가지예요. 공유수족관에 놓아주면 서로의 바람을 바라보고 응원하는 풍경에 함께할 수 있어요.';
     $('#release-creature').innerHTML='<span><small>추천 / SHARED AQUARIUM</small>공유수족관에 방류하기</span><span aria-hidden="true">↗</span>';
+    // Take it home: a QR for the visitor's own phone (the iPad's own save stays as it is).
+    try{
+      if(typeof qrcode==='function'){
+        const link=location.origin+'/c/'+entry.id,qr=qrcode(0,'M');qr.addData(link);qr.make();
+        const home=document.createElement('div');home.className='take-home';
+        home.innerHTML='<div class="take-home-qr" aria-hidden="true">'+qr.createSvgTag({cellSize:4,margin:2,scalable:true})+'</div><div><strong>내 휴대폰으로 가져가기</strong><p>휴대폰 카메라로 QR을 비추면<br>이 생물 이미지를 내 휴대폰에 저장할 수 있어요.</p></div>';
+        const buttons=panel.querySelector('.result-action-buttons');(buttons||panel).after(home);
+      }
+    }catch(_){/* QR is optional */}
     const explanation=document.createElement('p');explanation.className='release-note';explanation.textContent='함께 모인 소망은 서로를 응원하는 힘이 됩니다. 방류는 작품 속 참여 방식이며, 소망의 실제 실현을 보장하지 않아요.';panel.appendChild(explanation);
     const extras=document.createElement('div');extras.className='result-secondary';
     extras.innerHTML='<button class="text-button" id="keep-local">이 기기에 생물 보관하기 ＋</button><button class="text-button" id="read-ocean">함께 사는 소망 보기 ↗</button><a class="text-button" href="/shared-aquarium" target="_blank" rel="noopener">공유수족관 열기 ↗</a><p class="quiet-note">보관함에는 생물 종류만 저장해요. 입력한 글은 저장하지 않아요.</p>';
