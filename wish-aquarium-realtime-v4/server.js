@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -11,8 +12,12 @@ const httpServer = http.createServer(app);
 const root = __dirname;
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';
-const maxCreatures = clampNumber(process.env.MAX_CREATURES, 1, 500, 120);
-const creatureTtlMs = clampNumber(process.env.CREATURE_TTL_MS, 60_000, 86_400_000, 21_600_000);
+// Exhibition mode: released creatures are kept for the whole exhibition (no expiry).
+// CREATURE_TTL_MS can still set an expiry; MAX_CREATURES bounds memory.
+const maxCreatures = clampNumber(process.env.MAX_CREATURES, 1, 20000, 5000);
+const creatureTtlMs = process.env.CREATURE_TTL_MS ? clampNumber(process.env.CREATURE_TTL_MS, 60_000, 30 * 86_400_000, 0) : 0;
+const creaturesFile = process.env.CREATURES_FILE || path.join(__dirname, 'data', 'creatures.json');
+const seedFile = path.join(__dirname, 'exhibition-creatures.json');
 const configuredOrigins = String(process.env.CLIENT_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -34,6 +39,7 @@ function clampNumber(value, minimum, maximum, fallback) {
 }
 
 function cleanExpiredCreatures() {
+  if (!creatureTtlMs) return;
   const cutoff = Date.now() - creatureTtlMs;
   creatures = creatures.filter((creature) => creature.releasedAt >= cutoff);
   for (const [clientReleaseId, creature] of releaseIds) {
@@ -41,17 +47,59 @@ function cleanExpiredCreatures() {
   }
 }
 
-function makeCreature(payload) {
+function makeCreature(payload, restored) {
   const entry=catalogModel.get(payload?.catalogId);
   if(!entry)return null;
+  const id=restored&&typeof payload.id==='string'&&/^[A-Za-z0-9-]{8,64}$/.test(payload.id)?payload.id:crypto.randomUUID();
+  const at=Number(payload?.releasedAt),seed=Number(payload?.seed);
   return {
-    id:crypto.randomUUID(),catalogId:entry.id,specimenId:entry.id,
+    id,catalogId:entry.id,specimenId:entry.id,
     name:entry.folder,wishType:entry.wishType,methodType:entry.methodType,
     situationIndex:entry.situationIndex,wayIndex:entry.wayIndex,
     situationLabel:entry.wishCategory,wayLabel:wayLabels[entry.wayIndex],
     imageUrl:entry.imageUrl,videoUrl:entry.videoUrl,
-    releasedAt:Date.now(),seed:crypto.randomInt(1,2_147_483_647)
+    releasedAt:restored&&Number.isFinite(at)&&at>1.7e12&&at<=Date.now()+60_000?Math.round(at):Date.now(),
+    seed:restored&&Number.isInteger(seed)&&seed>0&&seed<2_147_483_648?seed:crypto.randomInt(1,2_147_483_647)
   };
+}
+
+// Bring back creatures we already know (seed file, saved file, or a display's archive).
+// Only ids that are not here yet are added; every entry is rebuilt from the real catalog.
+function restoreCreatures(list) {
+  if (!Array.isArray(list)) return [];
+  const known = new Set(creatures.map((creature) => creature.id)), added = [];
+  for (const item of list.slice(0, maxCreatures)) {
+    if (!item || known.has(item.id)) continue;
+    const creature = makeCreature(item, true);
+    if (!creature) continue;
+    known.add(creature.id);creatures.push(creature);added.push(creature);
+  }
+  if (added.length) {
+    creatures.sort((a, b) => a.releasedAt - b.releasedAt);
+    if (creatures.length > maxCreatures) creatures.splice(0, creatures.length - maxCreatures);
+    saveCreaturesSoon();
+  }
+  return added;
+}
+let saveTimer = null;
+function saveCreaturesSoon() {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    try {
+      fs.mkdirSync(path.dirname(creaturesFile), { recursive: true });
+      fs.writeFileSync(creaturesFile + '.tmp', JSON.stringify(creatures.map(({ id, catalogId, releasedAt, seed }) => ({ id, catalogId, releasedAt, seed }))));
+      fs.renameSync(creaturesFile + '.tmp', creaturesFile);
+    } catch (error) { console.warn('Could not save creatures', error.message); }
+  }, 2000);
+  saveTimer.unref?.();
+}
+for (const file of [seedFile, creaturesFile]) {
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const added = restoreCreatures(Array.isArray(data) ? data : data.creatures);
+    if (added.length) console.log(`Restored ${added.length} creatures from ${path.basename(file)}`);
+  } catch (_) { /* no file yet */ }
 }
 
 app.disable('x-powered-by');
@@ -68,12 +116,19 @@ app.get('/health', (_request, response) => {
 });
 
 // Only actual, retained releases are counted; never fabricate survey statistics.
+// Every creature in the aquarium, for keeping a record of the exhibition.
+app.get('/api/aquarium-archive', (_request, response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  response.json({ savedAt: new Date().toISOString(), total: creatures.length,
+    creatures: creatures.map(({ id, catalogId, releasedAt, seed, wishType, methodType }) => ({ id, catalogId, releasedAt, seed, wishType, methodType })) });
+});
+
 app.get('/api/aquarium-summary', (_request, response) => {
   cleanExpiredCreatures();
   response.setHeader('Cache-Control', 'no-store');
   response.json({
     total: creatures.length,
-    retentionHours: creatureTtlMs / 3_600_000,
+    retentionHours: creatureTtlMs / 3_600_000, // 0: kept for the whole exhibition
     scope: 'currently-retained-releases',
     generatedAt: new Date().toISOString(),
     directions: situationLabels.map((label, index) => ({
@@ -169,14 +224,21 @@ io.on('connection', (socket) => {
     creatures.push(creature);
     if (creatures.length > maxCreatures) creatures.splice(0, creatures.length - maxCreatures);
     if (clientReleaseId) releaseIds.set(clientReleaseId, creature);
+    saveCreaturesSoon();
     io.emit('creature:released', creature);
     acknowledge({ ok: true, creature });
+  });
+
+  // A display that kept its own archive gives it back after a server restart.
+  socket.on('aquarium:restore', (payload) => {
+    const added = restoreCreatures(payload?.creatures);
+    if (added.length) io.emit('aquarium:restored', { creatures: added });
   });
 
   socket.on('disconnect', broadcastPresence);
 });
 
-const cleanupTimer = setInterval(cleanExpiredCreatures, Math.min(creatureTtlMs, 300_000));
+const cleanupTimer = setInterval(cleanExpiredCreatures, Math.min(creatureTtlMs || 300_000, 300_000));
 cleanupTimer.unref();
 
 httpServer.listen(port, host, () => {

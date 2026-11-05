@@ -30,7 +30,7 @@ assert.equal(model.get('made-up-creature'),null);
 assert.equal(model.select('not a wish','not a method'),null);
 assert.equal(model.directions(6).length,0,'Do not invent recognition-category assets.');
 let source=fs.readFileSync(path.join(root,'server.js'),'utf8');
-const start=source.indexOf('function makeCreature(payload) {'),end=source.indexOf('\napp.disable',start);
+const start=source.indexOf('function makeCreature(payload, restored) {'),end=source.indexOf('\n// Bring back creatures',start);
 const context={catalogModel:model,crypto,wayLabels:['신뢰형','탐험형','축적형','회복형','공존형','몰입형','초월형']};
 vm.createContext(context);vm.runInContext(source.slice(start,end),context);
 assert.equal(context.makeCreature({situationIndex:0,wayIndex:0}),null,'Legacy indices cannot create an unlisted result.');

@@ -345,10 +345,32 @@ function seededNoise(seed, offset) {
   return value - Math.floor(value);
 }
 
+// Exhibition archive: this display keeps every creature it has seen, so a server
+// restart or a reload never empties the aquarium. Stored in this browser only.
+const ARCHIVE_KEY = 'wish-aquarium-archive-v1';
+const MAX_SWIMMERS = 400;
+let archiveTimer = null;
+function readArchive() {
+  try { const list = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); return Array.isArray(list) ? list : []; }
+  catch (_) { return []; }
+}
+function saveArchiveSoon() {
+  if (archiveTimer) return;
+  archiveTimer = setTimeout(() => {
+    archiveTimer = null;
+    try {
+      const byId = new Map(readArchive().map((item) => [item.id, item]));
+      for (const swimmer of swimmers) if (swimmer.data && swimmer.data.id) byId.set(swimmer.data.id, swimmer.data);
+      localStorage.setItem(ARCHIVE_KEY, JSON.stringify([...byId.values()].sort((a, b) => (a.releasedAt || 0) - (b.releasedAt || 0))));
+    } catch (_) { /* storage full or blocked: the server copy remains */ }
+  }, 1500);
+}
+
 function addCreature(data, isNew = true) {
-  if (!data || swimmers.some((swimmer) => swimmer.id === data.id)) return;
+  if (!data || !data.id || swimmers.some((swimmer) => swimmer.id === data.id)) return;
   swimmers.push(new WishSwimmer(data, isNew));
-  if (swimmers.length > 120) swimmers.splice(0, swimmers.length - 120);
+  if (swimmers.length > MAX_SWIMMERS) swimmers.splice(0, swimmers.length - MAX_SWIMMERS);
+  saveArchiveSoon();
   updateCount();
   if (isNew) {
     // The birth sequence (light gathering into the creature) starts once its PNG is ready.
@@ -356,10 +378,14 @@ function addCreature(data, isNew = true) {
   }
 }
 
+// Merge, never clear: creatures this display already has stay in the water.
 function syncAquariumState(data) {
-  swimmers.length = 0;
   for (const creature of data?.creatures || []) addCreature(creature, false);
   updateCount();
+  // Give the server back anything it lost (for example after a restart).
+  const known = new Set((data?.creatures || []).map((creature) => creature.id));
+  const missing = readArchive().filter((item) => item && item.id && !known.has(item.id));
+  if (missing.length && socket) socket.emit('aquarium:restore', { creatures: missing });
 }
 
 function updateCount() { /* No counter on the exhibition screen. */ }
@@ -369,6 +395,7 @@ function showArrival() { /* Keep the screen free of arrival labels. */ }
 function setLiveState() { /* Connection state remains internal. */ }
 
 function connectAquarium() {
+  for (const creature of readArchive()) addCreature(creature, false);
   const baseUrl = String(displayConfig.socketUrl || '').replace(/\/$/, '');
   const script = document.createElement('script');
   script.src = `${baseUrl}/socket.io/socket.io.js`;
@@ -386,6 +413,7 @@ function connectAquarium() {
     socket.on('connect_error', () => setLiveState('offline', '수족관 서버 연결 대기 중'));
     socket.on('aquarium:state', syncAquariumState);
     socket.on('creature:released', (creature) => addCreature(creature, true));
+    socket.on('aquarium:restored', (data) => { for (const creature of data?.creatures || []) addCreature(creature, false); });
   };
   script.onerror = () => setLiveState('offline', '수족관 서버를 찾지 못함');
   document.head.appendChild(script);
