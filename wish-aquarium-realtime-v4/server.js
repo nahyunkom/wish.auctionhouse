@@ -177,7 +177,7 @@ app.get('/vendor/p5.min.js', (_request, response) => {
 
 const socketOptions = {
   transports: ['websocket', 'polling'],
-  maxHttpBufferSize: 12_000,
+  maxHttpBufferSize: 64_000,
   serveClient: true
 };
 if (configuredOrigins.length) {

@@ -385,7 +385,11 @@ function syncAquariumState(data) {
   // Give the server back anything it lost (for example after a restart).
   const known = new Set((data?.creatures || []).map((creature) => creature.id));
   const missing = readArchive().filter((item) => item && item.id && !known.has(item.id));
-  if (missing.length && socket) socket.emit('aquarium:restore', { creatures: missing });
+  // Small, compact batches so each message stays well under the server's size limit.
+  if (missing.length && socket) {
+    const compact = missing.map(({ id, catalogId, releasedAt, seed }) => ({ id, catalogId, releasedAt, seed }));
+    for (let i = 0; i < compact.length; i += 100) socket.emit('aquarium:restore', { creatures: compact.slice(i, i + 100) });
+  }
 }
 
 function updateCount() { /* No counter on the exhibition screen. */ }
