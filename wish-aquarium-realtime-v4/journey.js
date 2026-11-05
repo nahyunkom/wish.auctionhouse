@@ -155,8 +155,7 @@
         // The save button now opens the QR: the creature's video is saved on the visitor's own phone.
         const save=$('#save-creature');
         if(save){
-          save.innerHTML='<span><small>KEEP YOUR WISH</small>내 생물 영상 저장하기</span><span aria-hidden="true">↓</span>';
-          save.onclick=()=>{home.hidden=!home.hidden;save.setAttribute('aria-expanded',String(!home.hidden));if(!home.hidden)home.scrollIntoView({behavior:'smooth',block:'nearest'});};
+                    save.onclick=()=>{home.hidden=!home.hidden;save.setAttribute('aria-expanded',String(!home.hidden));if(!home.hidden)home.scrollIntoView({behavior:'smooth',block:'nearest'});};
         }
       }
     }catch(_){/* QR is optional */}

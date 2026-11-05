@@ -224,11 +224,11 @@ app.get('/c/:id', (request, response) => {
     const named = takeHome.names[entry.id] || { ko: '소망생물', la: '' };
     const file = encodeURIComponent('소망경매장_' + named.ko + '.png');
     const video = '/c/' + entry.id + '/video';
-    body = '<figure><video src="' + video + '" poster="/' + escapeHtml(entry.imageUrl) + '" autoplay muted loop playsinline preload="auto" aria-label="' + escapeHtml(named.ko) + '"></video></figure>'
+    body = '<figure class="clip"><video id="clip" src="' + video + '" poster="/' + escapeHtml(entry.imageUrl) + '" autoplay loop playsinline preload="auto" aria-label="' + escapeHtml(named.ko) + '"></video><button id="sound" class="sound" hidden>소리 켜기</button></figure>'
       + '<h1>' + escapeHtml(named.ko) + '</h1><p class="latin">' + escapeHtml(named.la) + '</p>'
       + '<p class="wish">' + escapeHtml(takeHome.wishDescriptions[entry.wishType] || '') + '<br>' + escapeHtml(takeHome.methodDescriptions[entry.methodType] || '') + '</p>'
       + '<a class="save" href="' + video + '?download=1" download="' + escapeHtml(decodeURIComponent(file).replace(/\.png$/, '.mp4')) + '">영상 저장하기 <span aria-hidden="true">↓</span></a>'
-      + '<p class="tip">아이폰은 저장한 영상이 \'파일\' 앱에 들어가요. 사진 앱에 넣으려면 파일 앱에서 영상을 열고 공유 → \'비디오 저장\'을 눌러 주세요.<br><a href="/' + escapeHtml(entry.imageUrl) + '" download="' + escapeHtml(decodeURIComponent(file)) + '">이미지로 저장하기</a></p>'
+      + '<p class="tip"><a href="/' + escapeHtml(entry.imageUrl) + '" download="' + escapeHtml(decodeURIComponent(file)) + '">이미지로 저장하기</a></p>'
       + '<p class="id">' + escapeHtml(entry.id) + ' · 소망경매장 WISH AUCTION HOUSE</p>';
   }
   response.type('html').send(takeHome.template.replace('<!--CREATURE-->', body));

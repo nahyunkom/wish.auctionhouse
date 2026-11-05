@@ -15,6 +15,8 @@
       figure { margin: 22px 0 0; border: 1px solid rgba(220,235,230,.18); border-radius: 50% 50% 18px 18px / 36% 36% 18px 18px; overflow: hidden; background: #000; }
       figure img, figure video { display: block; width: 100%; height: auto; -webkit-touch-callout: default; }
       .tip a { color: #c3d6d0; }
+      .clip { position: relative; }
+      .sound { position: absolute; right: 14px; bottom: 14px; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(230,240,235,.5); background: rgba(0,0,0,.55); color: #e3eee6; font: inherit; font-size: 13px; }
       h1 { font-size: 28px; font-weight: 600; margin: 24px 0 4px; letter-spacing: -.01em; }
       .latin { font-style: italic; color: #9db8b6; margin: 0; font-size: 15px; }
       .wish { margin: 18px 0 0; font-size: 15px; line-height: 1.7; color: #c3d6d0; }
@@ -29,5 +31,13 @@
       <p class="kicker">WISH AUCTION HOUSE · MY WISH CREATURE</p>
       <!--CREATURE-->
     </main>
+    <script>
+      // Play with sound; if the phone blocks sound before a tap, play silently and offer a button.
+      (function(){var v=document.getElementById('clip'),b=document.getElementById('sound');if(!v)return;
+        v.muted=false;var p=v.play();
+        if(p&&p.catch)p.catch(function(){v.muted=true;v.play().catch(function(){});b.hidden=false;});
+        b.onclick=function(){v.muted=false;v.play();b.hidden=true;};
+        v.addEventListener('click',function(){if(v.muted){v.muted=false;b.hidden=true;}});})();
+    </script>
   </body>
 </html>
