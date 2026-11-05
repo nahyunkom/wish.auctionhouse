@@ -182,17 +182,41 @@
     const abort=new AbortController();teardown=()=>abort.abort();const timer=setTimeout(()=>abort.abort(),8000);
     try{
       const base=String(aquariumConfig.socketUrl||'').replace(/\/$/,'');
-      const response=await fetch(base+'/api/aquarium-summary',{signal:abort.signal,cache:'no-store'});
+      const [response,archiveResponse]=await Promise.all([fetch(base+'/api/aquarium-summary',{signal:abort.signal,cache:'no-store'}),fetch(base+'/api/aquarium-archive',{signal:abort.signal,cache:'no-store'}).catch(()=>null)]);
       if(!response.ok)throw Error('summary-unavailable');
       const data=await response.json();if(version!==sceneVersion)return;
+      let living=[];try{if(archiveResponse&&archiveResponse.ok){const a=await archiveResponse.json();living=Array.isArray(a.creatures)?a.creatures:[];}}catch(_){living=[];}
+      if(version!==sceneVersion)return;
       if(!Array.isArray(data.directions)||!Number.isFinite(data.total))throw Error('invalid-summary');
       const same=entry?data.directions[entry.situationIndex]?.count||0:0;
-      $('#ocean-report-content').innerHTML='<div class="report-numbers"><div><strong>'+data.total+'</strong><span>지금 함께하는 소망생물</span></div>'+(entry?'<div><strong>'+same+'</strong><span>나와 같은 방향의 소망</span></div>':'')+'</div><p class="quiet-note">'+(Number(data.retentionHours)>0?'현재 서버가 유지 중인 최근 최대 '+Number(Number(data.retentionHours).toFixed(2))+'시간의 방류 기록이에요.':'전시 기간 동안 공유수족관에 방류된 기록이에요.')+'<br>전체 관객의 설문 통계가 아니에요.</p><div class="report-bars">'+data.directions.map((d,i)=>'<div class="report-row"><span>'+escapeHtml(situations[i].label)+'</span><div><i style="width:'+(data.total?Math.round(d.count/data.total*100):0)+'%"></i></div><strong>'+Number(d.count)+'</strong></div>').join('')+'</div>'+(data.total===0?'<p class="report-message">아직 이 바다에 도착한 소망이 없어요.<br>당신의 생물이 첫 번째가 되어도 좋아요.</p>':'<p class="report-message">같은 소망도, 서로 다른 방법으로 자라고 있어요.<br>전시장 수족관에서 그 만남을 지켜봐 주세요.</p>')+'<a class="text-button" href="/shared-aquarium" target="_blank" rel="noopener">함께 헤엄치는 생물들 보기 ↗</a>';
+      $('#ocean-report-content').innerHTML='<div class="report-numbers"><div><strong>'+data.total+'</strong><span>지금 수족관에 사는 소망생물</span></div>'+(entry?'<div><strong>'+same+'</strong><span>나와 같은 방향의 소망</span></div>':'')+'</div><p class="quiet-note">'+(Number(data.retentionHours)>0?'현재 서버가 유지 중인 최근 최대 '+Number(Number(data.retentionHours).toFixed(2))+'시간의 방류 기록이에요.':'전시 기간 동안 공유수족관에 방류된 기록이에요.')+'<br>전체 관객의 설문 통계가 아니에요.</p><div class="report-bars">'+data.directions.map((d,i)=>'<div class="report-row"><span>'+escapeHtml(situations[i].label)+'</span><div><i style="width:'+(data.total?Math.round(d.count/data.total*100):0)+'%"></i></div><strong>'+Number(d.count)+'</strong></div>').join('')+'</div>'+(data.total===0?'<p class="report-message">아직 이 바다에 도착한 소망이 없어요.<br>당신의 생물이 첫 번째가 되어도 좋아요.</p>':'<p class="report-message">같은 소망도, 서로 다른 방법으로 자라고 있어요.<br>전시장 수족관에서 그 만남을 지켜봐 주세요.</p>')+oceanGallery(living,entry)+'<a class="text-button" href="/shared-aquarium" target="_blank" rel="noopener">함께 헤엄치는 생물들 보기 ↗</a>';
+      bindOceanGallery(living,entry);
     }catch(error){
       if(version!==sceneVersion)return;
       $('#ocean-report-content').innerHTML='<p>지금은 공유수족관 기록에 연결하지 못했어요.<br>연결을 확인한 뒤 다시 시도해 주세요.</p><button class="text-button" id="retry-report">다시 불러오기 ↻</button>';
       $('#retry-report').onclick=()=>showOceanReport(entry);
     }finally{clearTimeout(timer);}
+  }
+  // The creatures living in the shared aquarium now, newest first.
+  const GALLERY_STEP=24;
+  function oceanTime(ms){
+    const d=new Date(ms);if(!Number.isFinite(d.getTime()))return '';
+    const h=d.getHours(),m=String(d.getMinutes()).padStart(2,'0');
+    return (d.getMonth()+1)+'월 '+d.getDate()+'일 '+(h<12?'오전 ':'오후 ')+(h%12||12)+':'+m;
+  }
+  function oceanCard(item,entry){
+    const e=WishCatalog.get(item.catalogId);if(!e)return '';
+    const mine=entry&&entry.id===e.id;
+    return '<figure class="ocean-card'+(mine?' same':'')+'"><div><img loading="lazy" decoding="async" src="assets/thumbs/'+escapeHtml(e.id)+'.webp" alt="'+escapeHtml(creatureName(e))+'"></div><figcaption><strong>'+escapeHtml(creatureName(e))+'</strong><span>'+escapeHtml(wishDescriptions[e.wishType]||'')+'</span><small>'+escapeHtml(oceanTime(item.releasedAt))+(mine?' · 나와 같은 생물':'')+'</small></figcaption></figure>';
+  }
+  function oceanGallery(living,entry,shown=GALLERY_STEP){
+    const list=living.filter(item=>WishCatalog.get(item.catalogId)).sort((a,b)=>(b.releasedAt||0)-(a.releasedAt||0));
+    if(!list.length)return '';
+    return '<section class="ocean-gallery" aria-label="공유수족관에 사는 생물들"><h2>지금 수족관에 사는 생물들 <span>'+list.length+'</span></h2><div class="ocean-grid" id="ocean-grid">'+list.slice(0,shown).map(item=>oceanCard(item,entry)).join('')+'</div>'+(list.length>shown?'<button class="load-more" id="ocean-more" data-shown="'+shown+'">생물 더 보기 ('+shown+' / '+list.length+') ＋</button>':'')+'</section>';
+  }
+  function bindOceanGallery(living,entry){
+    const more=$('#ocean-more');if(!more)return;
+    more.onclick=()=>{const shown=Number(more.dataset.shown)+GALLERY_STEP;const holder=more.closest('.ocean-gallery');const y=window.scrollY;holder.outerHTML=oceanGallery(living,entry,shown);window.scrollTo(0,y);bindOceanGallery(living,entry);};
   }
   function showFarewell(){
     shell('UNTIL YOUR WISH COMES TRUE','당신의 소망이<br>살아갈 날들을 기다릴게요.',
