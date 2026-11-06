@@ -94,6 +94,26 @@ function saveCreaturesSoon() {
   }, 2000);
   saveTimer.unref?.();
 }
+// On Render a new deploy starts beside the old instance, which keeps serving until the new
+// one is healthy. Ask it for every creature it holds, so a deploy never loses releases.
+async function inheritFromRunningInstance() {
+  const base = process.env.INHERIT_FROM || process.env.RENDER_EXTERNAL_URL;
+  if (!base || typeof fetch !== 'function') return;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await fetch(base.replace(/\/$/, '') + '/api/aquarium-archive', { signal: AbortSignal.timeout(8000), headers: { 'Cache-Control': 'no-cache' } });
+      if (response.ok) {
+        const data = await response.json();
+        const added = restoreCreatures(data.creatures);
+        console.log(`Inherited ${added.length} creatures from the running instance (${data.total} there)`);
+        return;
+      }
+    } catch (error) { console.warn('Could not reach the running instance yet', error.message); }
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+  }
+}
+inheritFromRunningInstance();
+
 for (const file of [seedFile, creaturesFile]) {
   try {
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
