@@ -1,6 +1,6 @@
 {
- "savedAt": "2026-11-05T20:55+09:00",
- "note": "Released creatures in the exhibition aquarium (catalog ids only, no visitor data).",
+ "savedAt": "2026-11-07T08:45+09:00",
+ "note": "Released creatures in the exhibition aquarium (catalog ids only, no visitor data). 35 entries added 2026-11-07 to rebuild the 60-creature scene from a visitor photo.",
  "creatures": [
   {
    "id": "879a648a-ac52-43de-9edd-1d5a6a8b8675",
@@ -151,6 +151,216 @@
    "catalogId": "WC-bb15c9aaeb29",
    "releasedAt": 1793874542298,
    "seed": 287575145
+  },
+  {
+   "id": "fd426ade-414b-4ccc-b085-ac04063972ca",
+   "catalogId": "WC-b282c6064c57",
+   "releasedAt": 1793875079800,
+   "seed": 1135415266
+  },
+  {
+   "id": "cf1b72a0-db24-41aa-9c89-5146220d9ebb",
+   "catalogId": "WC-673b75362e13",
+   "releasedAt": 1793875155642,
+   "seed": 482688746
+  },
+  {
+   "id": "8c6c24e4-16bf-4c1e-8e42-1f7e6ab71ec1",
+   "catalogId": "WC-0c423d1582d0",
+   "releasedAt": 1793875200069,
+   "seed": 925288902
+  },
+  {
+   "id": "f993c0c6-7b38-4b87-821b-ca1c0bc9879b",
+   "catalogId": "WC-be78f02114f3",
+   "releasedAt": 1793875442215,
+   "seed": 34430626
+  },
+  {
+   "id": "f0426a1c-1baf-4f17-b12e-aae66d31851b",
+   "catalogId": "WC-2c37f99a9765",
+   "releasedAt": 1793875641294,
+   "seed": 69806734
+  },
+  {
+   "id": "d44546d4-c4f1-423f-a3d1-887a944a8e63",
+   "catalogId": "WC-bb70c68655f8",
+   "releasedAt": 1793875799232,
+   "seed": 1567910514
+  },
+  {
+   "id": "117bc5f9-e3bd-4881-b4ef-2c2aae8fdb08",
+   "catalogId": "WC-dab75c30e43b",
+   "releasedAt": 1793876026818,
+   "seed": 399274979
+  },
+  {
+   "id": "d4a96c04-6baf-4a0b-ab12-f0645fef7ab3",
+   "catalogId": "WC-69e5a83111d7",
+   "releasedAt": 1793876054654,
+   "seed": 1058219747
+  },
+  {
+   "id": "c2e3a5a1-b53c-443f-ac4b-82c823deef3c",
+   "catalogId": "WC-7c479af18ce1",
+   "releasedAt": 1793876147627,
+   "seed": 494217528
+  },
+  {
+   "id": "7de577f2-008b-4143-adc0-1d8290362144",
+   "catalogId": "WC-801b8116eb98",
+   "releasedAt": 1793876214391,
+   "seed": 719999111
+  },
+  {
+   "id": "e3bdb5f6-d75b-4d8c-a0bc-6f63dcefe857",
+   "catalogId": "WC-b73cdbf35881",
+   "releasedAt": 1793930697565,
+   "seed": 528082631
+  },
+  {
+   "id": "4365b81d-b936-4d1e-947d-20e303e82f14",
+   "catalogId": "WC-f9890465bc67",
+   "releasedAt": 1793931064168,
+   "seed": 1022274361
+  },
+  {
+   "id": "de5b6167-15cb-4830-96d5-8048c3872973",
+   "catalogId": "WC-82616e41f446",
+   "releasedAt": 1793933908950,
+   "seed": 516123228
+  },
+  {
+   "id": "be638e18-3b46-4d3b-9738-81894a1b3384",
+   "catalogId": "WC-70d3f3567788",
+   "releasedAt": 1793934554775,
+   "seed": 1185015316
+  },
+  {
+   "id": "2adce58c-a500-41b3-a5be-732d8a687b6e",
+   "catalogId": "WC-dcf8da76f1ab",
+   "releasedAt": 1793935803554,
+   "seed": 1988114554
+  },
+  {
+   "id": "f572cd6e-44a1-4f2e-9887-579b84fc086a",
+   "catalogId": "WC-ec94c2a785cd",
+   "releasedAt": 1793936408898,
+   "seed": 1653350486
+  },
+  {
+   "id": "d8a993c3-2887-4ab7-8ec8-b55afff9146e",
+   "catalogId": "WC-d3ebfff8d8dd",
+   "releasedAt": 1793938157511,
+   "seed": 856378234
+  },
+  {
+   "id": "86dfbceb-3472-4c0f-ae20-f3027ca663ba",
+   "catalogId": "WC-0ab19c792935",
+   "releasedAt": 1793938245864,
+   "seed": 682969447
+  },
+  {
+   "id": "861a46ce-307e-4770-b94a-a7add1d95732",
+   "catalogId": "WC-bf71908fcf48",
+   "releasedAt": 1793939292400,
+   "seed": 266453420
+  },
+  {
+   "id": "3f8ebef6-2569-4f0b-aec7-ea601dbb2d67",
+   "catalogId": "WC-e609bb783c97",
+   "releasedAt": 1793939941895,
+   "seed": 153166601
+  },
+  {
+   "id": "b0ca4eb2-74d3-48e4-8898-83f104bd7375",
+   "catalogId": "WC-5a4a2ed6a9b7",
+   "releasedAt": 1793940180619,
+   "seed": 2063543441
+  },
+  {
+   "id": "3b03afef-d6bc-4543-a40c-293d1a5be7bc",
+   "catalogId": "WC-1550a88d399e",
+   "releasedAt": 1793940319000,
+   "seed": 1194119273
+  },
+  {
+   "id": "3de399d1-8a40-48e8-961c-b762fd1632d2",
+   "catalogId": "WC-aa3530f3a42a",
+   "releasedAt": 1793943033684,
+   "seed": 905086451
+  },
+  {
+   "id": "d56fddc4-91c3-42d0-926f-21a230ba42d7",
+   "catalogId": "WC-b1e2064542aa",
+   "releasedAt": 1793947001647,
+   "seed": 1941773496
+  },
+  {
+   "id": "66822e0c-8f3b-4bf4-afb0-275ea21790bb",
+   "catalogId": "WC-b6828ea64b03",
+   "releasedAt": 1793948421372,
+   "seed": 1206947696
+  },
+  {
+   "id": "4a078e7f-048e-4e54-8ee2-59998fee1b93",
+   "catalogId": "WC-93967f00446d",
+   "releasedAt": 1793948764392,
+   "seed": 386533372
+  },
+  {
+   "id": "c58b68f9-5fbe-4374-9d23-0e1e940797fb",
+   "catalogId": "WC-8701904554ec",
+   "releasedAt": 1793949479916,
+   "seed": 1999764224
+  },
+  {
+   "id": "da4bcb89-aa82-472c-ac24-fa6372b7c758",
+   "catalogId": "WC-2a0900b1ac3f",
+   "releasedAt": 1793949849908,
+   "seed": 864566186
+  },
+  {
+   "id": "90a7bfc2-f295-4ed6-964b-b4852ad123e5",
+   "catalogId": "WC-3edb010b790b",
+   "releasedAt": 1793950769183,
+   "seed": 1778814496
+  },
+  {
+   "id": "dc3144c0-9a0d-4052-a5dd-01220ce636da",
+   "catalogId": "WC-cf6827e6205b",
+   "releasedAt": 1793952267232,
+   "seed": 934874711
+  },
+  {
+   "id": "7067c904-4d51-46c9-b2c5-34532741a094",
+   "catalogId": "WC-7fe83386994b",
+   "releasedAt": 1793956013744,
+   "seed": 1100216124
+  },
+  {
+   "id": "99074986-0fdc-4cf5-8808-7e651d514278",
+   "catalogId": "WC-0b6bf78de774",
+   "releasedAt": 1793956097372,
+   "seed": 1231555054
+  },
+  {
+   "id": "c7875026-3c92-4ad5-ae09-a1de862714d5",
+   "catalogId": "WC-f5edb604d9c7",
+   "releasedAt": 1793959623052,
+   "seed": 1537325213
+  },
+  {
+   "id": "bd698be4-09fc-45c6-baed-7cc82c6f3637",
+   "catalogId": "WC-f44b0d478e26",
+   "releasedAt": 1793959662826,
+   "seed": 323160051
+  },
+  {
+   "id": "9712a37f-dc6a-47d6-aa8a-b88cd47b02d5",
+   "catalogId": "WC-8cf6e5f21fb0",
+   "releasedAt": 1793960896803,
+   "seed": 726876720
   }
  ]
 }
