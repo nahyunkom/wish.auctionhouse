@@ -348,7 +348,8 @@ function seededNoise(seed, offset) {
 // Exhibition archive: this display keeps every creature it has seen, so a server
 // restart or a reload never empties the aquarium. Stored in this browser only.
 const ARCHIVE_KEY = 'wish-aquarium-archive-v1';
-const MAX_SWIMMERS = 400;
+// Exhibition performance cap: retain all releases on the server, render at most 60 swimmers.
+const MAX_SWIMMERS = 60;
 let archiveTimer = null;
 function readArchive() {
   try { const list = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); return Array.isArray(list) ? list : []; }
