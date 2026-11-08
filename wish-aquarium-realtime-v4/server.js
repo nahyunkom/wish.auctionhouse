@@ -18,6 +18,8 @@ const maxCreatures = clampNumber(process.env.MAX_CREATURES, 1, 20000, 5000);
 const creatureTtlMs = process.env.CREATURE_TTL_MS ? clampNumber(process.env.CREATURE_TTL_MS, 60_000, 30 * 86_400_000, 0) : 0;
 const creaturesFile = process.env.CREATURES_FILE || path.join(__dirname, 'data', 'creatures.json');
 const seedFile = path.join(__dirname, 'exhibition-creatures.json');
+// Creatures taken out on purpose: never restored from a seed, a saved file, a display or a deploy.
+const removedIds = new Set((() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'removed-creatures.json'), 'utf8')).ids || []; } catch (_) { return []; } })());
 const configuredOrigins = String(process.env.CLIENT_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -69,7 +71,7 @@ function restoreCreatures(list) {
   if (!Array.isArray(list)) return [];
   const known = new Set(creatures.map((creature) => creature.id)), added = [];
   for (const item of list.slice(0, maxCreatures)) {
-    if (!item || known.has(item.id)) continue;
+    if (!item || known.has(item.id) || removedIds.has(item.id)) continue;
     const creature = makeCreature(item, true);
     if (!creature) continue;
     known.add(creature.id);creatures.push(creature);added.push(creature);
@@ -307,7 +309,7 @@ function broadcastPresence() {
 
 io.on('connection', (socket) => {
   cleanExpiredCreatures();
-  socket.emit('aquarium:state', { creatures });
+  socket.emit('aquarium:state', { creatures, removed: [...removedIds] });
   broadcastPresence();
   let lastReleaseAt = 0;
 

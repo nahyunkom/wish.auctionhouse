@@ -380,11 +380,17 @@ function addCreature(data, isNew = true) {
 
 // Merge, never clear: creatures this display already has stay in the water.
 function syncAquariumState(data) {
-  for (const creature of data?.creatures || []) addCreature(creature, false);
+  // Creatures the artist took out leave this display and its saved archive too.
+  const removed = new Set(Array.isArray(data?.removed) ? data.removed : []);
+  if (removed.size) {
+    for (let i = swimmers.length - 1; i >= 0; i--) if (removed.has(swimmers[i].id)) swimmers.splice(i, 1);
+    try { localStorage.setItem(ARCHIVE_KEY, JSON.stringify(readArchive().filter((item) => !removed.has(item.id)))); } catch (_) {}
+  }
+  for (const creature of data?.creatures || []) if (!removed.has(creature.id)) addCreature(creature, false);
   updateCount();
   // Give the server back anything it lost (for example after a restart).
   const known = new Set((data?.creatures || []).map((creature) => creature.id));
-  const missing = readArchive().filter((item) => item && item.id && !known.has(item.id));
+  const missing = readArchive().filter((item) => item && item.id && !known.has(item.id) && !removed.has(item.id));
   // Small, compact batches so each message stays well under the server's size limit.
   if (missing.length && socket) {
     const compact = missing.map(({ id, catalogId, releasedAt, seed }) => ({ id, catalogId, releasedAt, seed }));
